@@ -1417,4 +1417,3 @@ private fun Placeholder(title: String, modifier: Modifier = Modifier) {
         Text(title + " — segera dikembangkan", style = MaterialTheme.typography.titleLarge)
     }
 }
-}
