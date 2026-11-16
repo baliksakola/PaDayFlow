@@ -166,13 +166,66 @@ private fun TaskList(
     onEdit: (TaskEntity) -> Unit,
     onDelete: (TaskEntity) -> Unit
 ) {
+    var statusFilter by remember(title) { mutableStateOf("Semua") }
+    var categoryFilter by remember(title) { mutableStateOf("Semua") }
+    var priorityFilter by remember(title) { mutableStateOf("Semua") }
+    var sortByDeadline by remember(title) { mutableStateOf(false) }
+    var filterMenu by remember(title) { mutableStateOf("") }
+
+    val categories = listOf("Semua") + tasks.map { it.category }.distinct().sorted()
+    val statuses = listOf("Semua", "Belum dikerjakan", "Sedang dikerjakan", "Tertunda", "Menunggu orang lain", "Selesai", "Dibatalkan")
+    val priorities = listOf("Semua", "Mendesak", "Tinggi", "Normal", "Rendah")
+    val filtered = tasks.filter {
+        (statusFilter == "Semua" || it.status == statusFilter) &&
+        (categoryFilter == "Semua" || it.category == categoryFilter) &&
+        (priorityFilter == "Semua" || it.priority == priorityFilter)
+    }.let { list ->
+        if (sortByDeadline) list.sortedWith(compareBy<TaskEntity> { it.deadlineAt == null }.thenBy { it.deadlineAt })
+        else list
+    }
+
     Column(modifier.fillMaxSize().padding(20.dp)) {
         Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(tasks.size.toString() + " tugas tersimpan", modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+        Text(filtered.size.toString() + " dari " + tasks.size + " tugas", modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (tasks.isEmpty()) EmptyState(emptyTitle, emptyDescription)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box {
+                FilterChip(selected = statusFilter != "Semua", onClick = { filterMenu = "status" },
+                    label = { Text("Status") })
+                DropdownMenu(filterMenu == "status", { filterMenu = "" }) {
+                    statuses.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { statusFilter = value; filterMenu = "" }) }
+                }
+            }
+            Box {
+                FilterChip(selected = categoryFilter != "Semua", onClick = { filterMenu = "category" },
+                    label = { Text("Kategori") })
+                DropdownMenu(filterMenu == "category", { filterMenu = "" }) {
+                    categories.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { categoryFilter = value; filterMenu = "" }) }
+                }
+            }
+            Box {
+                FilterChip(selected = priorityFilter != "Semua", onClick = { filterMenu = "priority" },
+                    label = { Text("Prioritas") })
+                DropdownMenu(filterMenu == "priority", { filterMenu = "" }) {
+                    priorities.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { priorityFilter = value; filterMenu = "" }) }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { sortByDeadline = !sortByDeadline }) {
+                Icon(Icons.Outlined.Sort, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (sortByDeadline) "Deadline terdekat" else "Urutkan: terbaru")
+            }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = {
+                statusFilter = "Semua"; categoryFilter = "Semua"; priorityFilter = "Semua"; sortByDeadline = false
+            }) { Text("Reset") }
+        }
+        if (filtered.isEmpty()) EmptyState(if (tasks.isEmpty()) emptyTitle else "Tidak ada hasil",
+            if (tasks.isEmpty()) emptyDescription else "Ubah atau reset filter untuk melihat tugas lain.")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(tasks, key = { it.id }) { task ->
+            items(filtered, key = { it.id }) { task ->
                 TaskCard(task, onClick = { onEdit(task) }, onComplete = { onComplete(task) }, onDelete = { onDelete(task) })
             }
         }
