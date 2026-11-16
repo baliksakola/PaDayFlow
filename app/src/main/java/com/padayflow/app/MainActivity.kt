@@ -49,13 +49,17 @@ class MainActivity : ComponentActivity() {
         val database = PaDayFlowDatabase.getInstance(applicationContext)
         val settings = applicationContext.dataStore
         val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
+        val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
         setContent {
             val themeMode by themeFlow.collectAsState(initial = "system")
+            val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(),
                         themeMode = themeMode, onThemeChange = { selected ->
                             lifecycleScope.launch { settings.edit { it[THEME_MODE] = selected } }
+                        }, productiveHours = productiveHours, onProductiveHoursChange = { hours ->
+                            lifecycleScope.launch { settings.edit { it[DAILY_PRODUCTIVE_HOURS] = hours } }
                         })
                 }
             }
@@ -64,7 +68,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -112,8 +116,9 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
-                showSettings -> SettingsScreen(themeMode, Modifier.padding(padding),
-                    onBack = { showSettings = false }, onThemeChange = onThemeChange)
+                showSettings -> SettingsScreen(themeMode, productiveHours, Modifier.padding(padding),
+                    onBack = { showSettings = false }, onThemeChange = onThemeChange,
+                    onProductiveHoursChange = onProductiveHoursChange)
                 showBackupRestore -> BackupRestoreScreen(database, Modifier.padding(padding),
                     onBack = { showBackupRestore = false })
                 else -> MoreMenu(Modifier.padding(padding),
@@ -383,8 +388,10 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
 }
 
 @Composable
-private fun SettingsScreen(themeMode: String, modifier: Modifier = Modifier,
-                           onBack: () -> Unit, onThemeChange: (String) -> Unit) {
+private fun SettingsScreen(themeMode: String, productiveHours: Int, modifier: Modifier = Modifier,
+                           onBack: () -> Unit, onThemeChange: (String) -> Unit,
+                           onProductiveHoursChange: (Int) -> Unit) {
+    var hoursInput by remember(productiveHours) { mutableStateOf(productiveHours.toString()) }
     val options = listOf("system" to "Ikuti sistem", "light" to "Terang", "dark" to "Gelap")
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -408,9 +415,32 @@ private fun SettingsScreen(themeMode: String, modifier: Modifier = Modifier,
             }
         }
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Kapasitas produktif harian", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Batas waktu untuk pekerjaan dan tugas setiap hari. Nilai ini menjadi acuan rekomendasi Smart Assistant.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = hoursInput,
+                    onValueChange = { hoursInput = it.filter(Char::isDigit).take(2) },
+                    label = { Text("Jam produktif per hari") },
+                    suffix = { Text("jam") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                val parsedHours = hoursInput.toIntOrNull()
+                Button(
+                    enabled = parsedHours != null && parsedHours in 1..16 && parsedHours != productiveHours,
+                    onClick = { parsedHours?.let(onProductiveHoursChange) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Simpan kapasitas") }
+                Text("Rentang yang diizinkan: 1–16 jam. Pengaturan ini belum otomatis menjadwalkan ulang tugas.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Penyimpanan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Data tugas, habit, dan catatan tersimpan secara lokal menggunakan Room. Backup dan restore akan ditambahkan pada tahap berikutnya.",
+                Text("Data tugas, habit, dan catatan tersimpan secara lokal menggunakan Room. Gunakan menu Backup & Restore untuk membuat atau memulihkan salinan data.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
