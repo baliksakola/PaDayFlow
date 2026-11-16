@@ -55,6 +55,7 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao) {
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<TaskEntity?>(null) }
     var showHabitTracker by remember { mutableStateOf(false) }
+    var showSmartAssistant by remember { mutableStateOf(false) }
     var openedNotesType by remember { mutableStateOf<String?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
@@ -87,10 +88,13 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao) {
                 openedNotesType != null -> NotesScreen(noteDao, openedNotesType!!, Modifier.padding(padding),
                     onBack = { openedNotesType = null })
                 showHabitTracker -> HabitTrackerScreen(habitDao, Modifier.padding(padding), onBack = { showHabitTracker = false })
+                showSmartAssistant -> SmartAssistantScreen(tasks, Modifier.padding(padding),
+                    onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 else -> MoreMenu(Modifier.padding(padding),
                     onHabitClick = { showHabitTracker = true },
                     onNotesClick = { openedNotesType = "NOTE" },
-                    onBrainDumpClick = { openedNotesType = "BRAIN_DUMP" })
+                    onBrainDumpClick = { openedNotesType = "BRAIN_DUMP" },
+                    onSmartAssistantClick = { showSmartAssistant = true })
             }
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
@@ -251,7 +255,7 @@ private fun TaskList(
 }
 
 @Composable
-private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit) {
+private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Lainnya", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Card(onClick = onHabitClick, modifier = Modifier.fillMaxWidth(),
@@ -280,6 +284,19 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null)
             }
         }
+        Card(onClick = onSmartAssistantClick, modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Smart Assistant", fontWeight = FontWeight.SemiBold)
+                    Text("Analisis deadline, prioritas, dan risiko tugas secara offline.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+        }
         Card(onClick = onBrainDumpClick, modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -294,6 +311,69 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
             }
         }
         Text("Modul lain akan ditambahkan bertahap.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SmartAssistantScreen(
+    tasks: List<TaskEntity>,
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit,
+    onOpenTask: (TaskEntity) -> Unit
+) {
+    val today = LocalDate.now()
+    val zone = ZoneId.systemDefault()
+    val startToday = today.atStartOfDay(zone).toInstant().toEpochMilli()
+    val endSoon = today.plusDays(3).plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    val active = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
+    val overdue = active.filter { it.deadlineAt != null && it.deadlineAt < startToday }
+    val dueSoon = active.filter { it.deadlineAt != null && it.deadlineAt >= startToday && it.deadlineAt < endSoon }
+    val urgent = active.filter { it.priority == "Mendesak" || it.priority == "Tinggi" }
+    val noSchedule = active.filter { it.startAt == null && it.deadlineAt == null }
+    val suggestions = buildList {
+        overdue.forEach { add("Terlambat: ${it.title}. Tinjau progres dan tentukan jadwal tindak lanjut.") }
+        dueSoon.forEach { add("Deadline mendekat: ${it.title}. Sisihkan waktu sebelum ${formatDate(it.deadlineAt!!)}.") }
+        urgent.filter { task -> overdue.none { it.id == task.id } && dueSoon.none { it.id == task.id } }
+            .forEach { add("Prioritas tinggi: ${it.title}. Pertimbangkan untuk mengerjakannya lebih awal.") }
+        noSchedule.take(5).forEach { add("Belum dijadwalkan: ${it.title}. Tetapkan tanggal mulai atau deadline agar mudah dipantau.") }
+    }
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }
+            Column(Modifier.weight(1f)) {
+                Text("Smart Assistant", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Analisis lokal berdasarkan data tugas perangkat.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("Ringkasan kondisi tugas", fontWeight = FontWeight.SemiBold)
+                Text("${active.size} tugas aktif", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("${overdue.size} terlambat · ${dueSoon.size} deadline 3 hari ke depan · ${urgent.size} prioritas tinggi/mendesak")
+            }
+        }
+        Heading("Rekomendasi", "Saran dibuat dari aturan sederhana, tanpa layanan AI berbayar.")
+        if (suggestions.isEmpty()) {
+            EmptyState("Belum ada risiko yang terdeteksi", "Tetap periksa daftar tugas dan pastikan tanggal serta prioritas sudah diperbarui.")
+        } else {
+            suggestions.forEachIndexed { index, suggestion ->
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("${index + 1}.", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text(suggestion, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        Heading("Tugas yang perlu diperiksa", "Pilih tugas untuk membuka detail dan mengubahnya secara manual.")
+        (overdue + dueSoon + urgent.filter { task -> overdue.none { it.id == task.id } && dueSoon.none { it.id == task.id } })
+            .distinctBy { it.id }.take(10).forEach { task -> TaskCard(task, onClick = { onOpenTask(task) }) }
+        Text("Catatan: rekomendasi ini tidak mengubah tugas, jadwal, atau status secara otomatis.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(24.dp))
     }
 }
 
