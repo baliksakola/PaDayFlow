@@ -19,7 +19,14 @@ internal object RecurringTaskFactory {
         val nextDate = when (task.recurrenceRule) {
             "DAILY" -> baseDate.plusDays(interval.toLong())
             "WEEKLY" -> baseDate.plusWeeks(interval.toLong())
-            "MONTHLY" -> baseDate.plusMonths(interval.toLong())
+            "MONTHLY" -> {
+                val targetMonth = baseDate.plusMonths(interval.toLong())
+                if (baseDate.dayOfMonth == baseDate.lengthOfMonth()) {
+                    targetMonth.withDayOfMonth(targetMonth.lengthOfMonth())
+                } else {
+                    targetMonth.withDayOfMonth(minOf(baseDate.dayOfMonth, targetMonth.lengthOfMonth()))
+                }
+            }
             else -> return null
         }
         val nextStart = nextDate.atStartOfDay(zone).toInstant().toEpochMilli()
