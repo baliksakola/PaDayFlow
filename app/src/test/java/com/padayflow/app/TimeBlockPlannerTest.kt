@@ -151,6 +151,34 @@ class TimeBlockPlannerTest {
     }
 
     @Test
+    fun exposesProtectedIntervalsAndFreeGapsWithoutOverlap() {
+        val task = TaskEntity(
+            id = 21, title = "Rapat",
+            startAt = at("09:00"), scheduledStartAt = at("09:00"),
+            scheduledEndAt = at("10:00"), estimatedMinutes = 60
+        )
+        val result = TimeBlockPlanner.plan(
+            date, listOf(task), 6, "12:00-13:00|Makan", zone,
+            LocalTime.of(8, 0), LocalTime.of(17, 0)
+        )
+
+        assertEquals(1, result.protectedSlots.size)
+        assertEquals(at("12:00"), result.protectedSlots.first().startAt)
+        assertTrue(result.freeSlots.any { it.startAt == at("10:00") && it.endAt == at("12:00") })
+        assertTrue(result.freeSlots.none { gap ->
+            gap.startAt < at("10:00") && gap.endAt > at("09:00")
+        })
+    }
+
+    @Test
+    fun overloadedDayReportsZeroRemainingCapacity() {
+        val task = TaskEntity(id = 22, title = "Pekerjaan", startAt = at("08:00"), estimatedMinutes = 180)
+        val result = TimeBlockPlanner.plan(date, listOf(task), 2, "", zone)
+        assertEquals(0, result.remainingMinutes)
+        assertEquals(120, result.capacityMinutes)
+    }
+
+    @Test
     fun capacityIsClampedAndNeverCreatesOverlappingProposals() {
         val tasks = listOf(
             TaskEntity(id = 1, title = "A", estimatedMinutes = 300),
