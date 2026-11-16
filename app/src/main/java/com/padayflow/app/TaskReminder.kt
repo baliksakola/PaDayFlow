@@ -28,6 +28,12 @@ private const val CHANNEL_ID = "padayflow_task_reminders"
 private const val ACTION_COMPLETE = "com.padayflow.app.REMINDER_COMPLETE"
 private const val ACTION_SNOOZE = "com.padayflow.app.REMINDER_SNOOZE"
 
+internal object ReminderSchedulePolicy {
+    fun shouldSchedule(task: TaskEntity, now: Long): Boolean =
+        task.status != "Selesai" && task.status != "Dibatalkan" &&
+            task.reminderAt?.let { it > now } == true
+}
+
 internal object ReminderScheduler {
     fun schedule(context: Context, taskId: Long, title: String, triggerAt: Long) {
         val delay = (triggerAt - System.currentTimeMillis()).coerceAtLeast(0L)
@@ -46,8 +52,7 @@ internal object ReminderScheduler {
         val now = System.currentTimeMillis()
         tasks.forEach { task ->
             val trigger = task.reminderAt
-            if (task.status == "Selesai" || task.status == "Dibatalkan" ||
-                trigger == null || trigger <= now) {
+            if (!ReminderSchedulePolicy.shouldSchedule(task, now)) {
                 cancel(context, task.id)
                 NotificationManagerCompat.from(context).cancel(task.id.toInt())
             } else {
