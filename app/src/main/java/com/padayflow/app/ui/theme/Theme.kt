@@ -29,9 +29,14 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun PaDayFlowTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: String = "system",
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> isSystemInDarkTheme()
+    }
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         typography = MaterialTheme.typography,
