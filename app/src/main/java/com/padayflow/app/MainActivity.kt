@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -74,6 +75,7 @@ private fun PaDayFlowApp(dao: TaskDao) {
             2 -> TaskList(tasks, Modifier.padding(padding), title = "Semua tugas",
                 onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
+            3 -> CalendarScreen(tasks, Modifier.padding(padding), onEdit = { editing = it })
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
     }
@@ -229,6 +231,116 @@ private fun TaskList(
                 TaskCard(task, onClick = { onEdit(task) }, onComplete = { onComplete(task) }, onDelete = { onDelete(task) })
             }
         }
+    }
+}
+
+@Composable
+private fun CalendarScreen(
+    tasks: List<TaskEntity>,
+    modifier: Modifier = Modifier,
+    onEdit: (TaskEntity) -> Unit
+) {
+    var month by remember { mutableStateOf(LocalDate.now().withDayOfMonth(1)) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    val monthTitle = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("id", "ID")))
+        .replaceFirstChar { it.uppercase(Locale("id", "ID")) }
+    val daysInMonth = month.lengthOfMonth()
+    val firstOffset = month.dayOfWeek.value - 1
+    val today = LocalDate.now()
+
+    fun hasTask(date: LocalDate): Boolean = tasks.any { task ->
+        task.startAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == date } == true ||
+            task.deadlineAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == date } == true
+    }
+
+    val selectedTasks = tasks.filter { task ->
+        task.startAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == selectedDate } == true ||
+            task.deadlineAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == selectedDate } == true
+    }.distinctBy { it.id }
+
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Kalender", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { month = month.minusMonths(1); selectedDate = month }) {
+                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "Bulan sebelumnya")
+                    }
+                    Text(monthTitle, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { month = month.plusMonths(1); selectedDate = month }) {
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = "Bulan berikutnya")
+                    }
+                }
+                Row(Modifier.fillMaxWidth()) {
+                    listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min").forEach { day ->
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            Text(day, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                val cellCount = ((firstOffset + daysInMonth + 6) / 7) * 7
+                for (weekStart in 0 until cellCount step 7) {
+                    Row(Modifier.fillMaxWidth()) {
+                        for (column in 0..6) {
+                            val dayNumber = weekStart + column - firstOffset + 1
+                            if (dayNumber in 1..daysInMonth) {
+                                val date = month.withDayOfMonth(dayNumber)
+                                val isSelected = date == selectedDate
+                                val isToday = date == today
+                                Column(Modifier.weight(1f).height(48.dp).clickable { selectedDate = date },
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center) {
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary
+                                            else if (isToday) MaterialTheme.colorScheme.secondaryContainer
+                                            else MaterialTheme.colorScheme.surface
+                                    ) {
+                                        Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                                            Text(dayNumber.toString(), color = if (isSelected)
+                                                MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        }
+                                    }
+                                    if (hasTask(date)) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Surface(Modifier.size(4.dp), shape = RoundedCornerShape(50),
+                                            color = MaterialTheme.colorScheme.primary) {}
+                                    } else Spacer(Modifier.height(6.dp))
+                                }
+                            } else {
+                                Spacer(Modifier.weight(1f).height(48.dp))
+                            }
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(Modifier.size(7.dp), shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary) {}
+                    Text("Ada tugas mulai atau deadline", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(selectedDate.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID")))
+                    .replaceFirstChar { it.uppercase(Locale("id", "ID")) },
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(selectedTasks.size.toString() + " agenda", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = { month = today.withDayOfMonth(1); selectedDate = today }) { Text("Hari ini") }
+        }
+        if (selectedTasks.isEmpty()) {
+            EmptyState("Tidak ada agenda", "Tidak ada tanggal mulai atau deadline tugas pada tanggal ini.")
+        } else {
+            selectedTasks.forEach { task ->
+                TaskCard(task, onClick = { onEdit(task) })
+            }
+        }
+        Spacer(Modifier.height(72.dp))
     }
 }
 
