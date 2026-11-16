@@ -24,6 +24,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.padayflow.app.data.PaDayFlowDatabase
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit) {
+    val context = LocalContext.current.applicationContext
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -163,7 +165,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
             withContext(Dispatchers.IO) {
                 val newId = dao.insert(task)
                 if (task.reminderAt != null && task.reminderAt > System.currentTimeMillis()) {
-                    ReminderScheduler.schedule(this@MainActivity, newId, task.title, task.reminderAt)
+                    ReminderScheduler.schedule(context, newId, task.title, task.reminderAt)
                 }
             }
             adding = false
@@ -175,9 +177,9 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
             scope.launch {
                 withContext(Dispatchers.IO) {
                     dao.update(updated)
-                    ReminderScheduler.cancel(this@MainActivity, updated.id)
+                    ReminderScheduler.cancel(context, updated.id)
                     if (updated.reminderAt != null && updated.reminderAt > System.currentTimeMillis()) {
-                        ReminderScheduler.schedule(this@MainActivity, updated.id, updated.title, updated.reminderAt)
+                        ReminderScheduler.schedule(context, updated.id, updated.title, updated.reminderAt)
                     }
                 }
                 editing = null
@@ -191,7 +193,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
             text = { Text("Tugas \"" + task.title + "\" akan dihapus permanen dari perangkat.") },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { withContext(Dispatchers.IO) { dao.delete(task.id) }; ReminderScheduler.cancel(this@MainActivity, task.id); deleting = null }
+                    scope.launch { withContext(Dispatchers.IO) { dao.delete(task.id) }; ReminderScheduler.cancel(context, task.id); deleting = null }
                 }) { Text("Hapus", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Batal") } }
