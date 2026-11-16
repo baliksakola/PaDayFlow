@@ -78,6 +78,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
     var showAnalytics by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showBackupRestore by remember { mutableStateOf(false) }
+    var showDailyPlanning by remember { mutableStateOf(false) }
     var openedNotesType by remember { mutableStateOf<String?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val habits by habitDao.observeHabits().collectAsState(initial = emptyList())
@@ -121,6 +122,14 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onProductiveHoursChange = onProductiveHoursChange)
                 showBackupRestore -> BackupRestoreScreen(database, Modifier.padding(padding),
                     onBack = { showBackupRestore = false })
+                showDailyPlanning -> DailyPlanningScreen(tasks, productiveHours, Modifier.padding(padding),
+                    onBack = { showDailyPlanning = false }, onOpenTask = { editing = it },
+                    onApproveSchedule = { task ->
+                        scope.launch {
+                            val todayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            withContext(Dispatchers.IO) { dao.update(task.copy(startAt = todayStart)) }
+                        }
+                    })
                 else -> MoreMenu(Modifier.padding(padding),
                     onHabitClick = { showHabitTracker = true },
                     onNotesClick = { openedNotesType = "NOTE" },
@@ -128,7 +137,8 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onSmartAssistantClick = { showSmartAssistant = true },
                     onAnalyticsClick = { showAnalytics = true },
                     onSettingsClick = { showSettings = true },
-                    onBackupClick = { showBackupRestore = true })
+                    onBackupClick = { showBackupRestore = true },
+                    onDailyPlanningClick = { showDailyPlanning = true })
             }
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
@@ -289,7 +299,7 @@ private fun TaskList(
 }
 
 @Composable
-private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit, onBackupClick: () -> Unit) {
+private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit, onBackupClick: () -> Unit, onDailyPlanningClick: () -> Unit) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Lainnya", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Card(onClick = onHabitClick, modifier = Modifier.fillMaxWidth(),
@@ -313,6 +323,19 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
                 Column(Modifier.weight(1f)) {
                     Text("Notes", fontWeight = FontWeight.SemiBold)
                     Text("Simpan catatan dan ide penting.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+        }
+        Card(onClick = onDailyPlanningClick, modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Today, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Daily Planning", fontWeight = FontWeight.SemiBold)
+                    Text("Susun usulan tugas hari ini berdasarkan kapasitas produktif.", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null)
