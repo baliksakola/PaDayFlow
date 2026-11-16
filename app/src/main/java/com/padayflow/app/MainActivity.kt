@@ -446,28 +446,51 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
 }
 
 @Composable
-private fun SettingsScreen(themeMode: String, productiveHours: Int, protectedTimes: String, snoozeMinutes: Int, modifier: Modifier = Modifier,
-                           onBack: () -> Unit, onThemeChange: (String) -> Unit,
-                           onProductiveHoursChange: (Int) -> Unit, onProtectedTimesChange: (String) -> Unit, onSnoozeMinutesChange: (Int) -> Unit) {
+private fun SettingsScreen(
+    themeMode: String,
+    productiveHours: Int,
+    protectedTimes: String,
+    snoozeMinutes: Int,
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit,
+    onThemeChange: (String) -> Unit,
+    onProductiveHoursChange: (Int) -> Unit,
+    onProtectedTimesChange: (String) -> Unit,
+    onSnoozeMinutesChange: (Int) -> Unit
+) {
     var hoursInput by remember(productiveHours) { mutableStateOf(productiveHours.toString()) }
     var protectedInput by remember(protectedTimes) { mutableStateOf(protectedTimes) }
     var protectedError by remember { mutableStateOf<String?>(null) }
     var selectedSnooze by remember(snoozeMinutes) { mutableIntStateOf(snoozeMinutes) }
     val options = listOf("system" to "Ikuti sistem", "light" to "Terang", "dark" to "Gelap")
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }
+            IconButton(onClick = onBack) {
+                Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali")
+            }
             Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Tampilan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Pilih tema aplikasi. Perubahan disimpan di perangkat dan diterapkan langsung.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Pilih tema aplikasi. Perubahan disimpan di perangkat dan diterapkan langsung.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 options.forEach { (value, label) ->
-                    Row(Modifier.fillMaxWidth().clickable { onThemeChange(value) }.padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onThemeChange(value) }.padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         RadioButton(selected = themeMode == value, onClick = { onThemeChange(value) })
                         Spacer(Modifier.width(8.dp))
                         Text(label)
@@ -475,11 +498,18 @@ private fun SettingsScreen(themeMode: String, productiveHours: Int, protectedTim
                 }
             }
         }
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Kapasitas produktif harian", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Batas waktu untuk pekerjaan dan tugas setiap hari. Nilai ini menjadi acuan rekomendasi Smart Assistant.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Batas waktu untuk pekerjaan dan tugas setiap hari. Nilai ini menjadi acuan rekomendasi Smart Assistant.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 OutlinedTextField(
                     value = hoursInput,
                     onValueChange = { hoursInput = it.filter(Char::isDigit).take(2) },
@@ -494,31 +524,57 @@ private fun SettingsScreen(themeMode: String, productiveHours: Int, protectedTim
                     onClick = { parsedHours?.let(onProductiveHoursChange) },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Simpan kapasitas") }
-                Text("Rentang yang diizinkan: 1–16 jam. Pengaturan ini belum otomatis menjadwalkan ulang tugas.",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Rentang yang diizinkan: 1–16 jam. Pengaturan ini belum otomatis menjadwalkan ulang tugas.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Durasi tunda pengingat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Atur berapa lama pengingat ditunda ketika tombol Tunda ditekan pada notifikasi.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Atur berapa lama pengingat ditunda ketika tombol Tunda ditekan pada notifikasi.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 listOf(15, 30, 60, 120).forEach { minutes ->
-                    Row(Modifier.fillMaxWidth().clickable { selectedSnooze = minutes }, verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { selectedSnooze = minutes },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         RadioButton(selected = selectedSnooze == minutes, onClick = { selectedSnooze = minutes })
                         Spacer(Modifier.width(8.dp))
-                        Text(if (minutes < 60) minutes.toString() + " menit" else if (minutes == 60) "1 jam" else "2 jam")
+                        Text(
+                            if (minutes < 60) "$minutes menit"
+                            else if (minutes == 60) "1 jam" else "2 jam"
+                        )
                     }
                 }
-                Button(onClick = { onSnoozeMinutesChange(selectedSnooze) }, enabled = selectedSnooze != snoozeMinutes, modifier = Modifier.fillMaxWidth()) { Text("Simpan durasi tunda") }
+                Button(
+                    onClick = { onSnoozeMinutesChange(selectedSnooze) },
+                    enabled = selectedSnooze != snoozeMinutes,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Simpan durasi tunda") }
             }
         }
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Protected Time", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Waktu yang tidak boleh diisi oleh usulan Daily Planning. Satu baris per blok dengan format HH:mm-HH:mm|Nama. Blok melewati tengah malam didukung.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Waktu yang tidak boleh diisi oleh usulan Daily Planning. Satu baris per blok dengan format HH:mm-HH:mm|Nama. Blok melewati tengah malam didukung.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 OutlinedTextField(
                     value = protectedInput,
                     onValueChange = { protectedInput = it; protectedError = null },
@@ -527,35 +583,61 @@ private fun SettingsScreen(themeMode: String, productiveHours: Int, protectedTim
                     minLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
-                protectedError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                Button(onClick = {
-                    val lines = protectedInput.lines().filter { it.isNotBlank() }
-                    val valid = lines.all { line ->
-                        val parts = line.split("|")
-                        val times = parts.firstOrNull()?.split("-") ?: emptyList()
-                        parts.size == 2 && parts[1].isNotBlank() && times.size == 2 &&
-                            runCatching { LocalTime.parse(times[0]); LocalTime.parse(times[1]) }.isSuccess &&
-                            times[0] != times[1]
-                    }
-                    if (valid) { onProtectedTimesChange(protectedInput.trim()); protectedError = null }
-                    else protectedError = "Format tidak valid. Contoh: 12:00-13:00|Makan"
-                }, modifier = Modifier.fillMaxWidth()) { Text("Simpan Protected Time") }
-                Text("Contoh default: makan, waktu keluarga, dan tidur. Hapus baris jika tidak ingin memblokir waktu tersebut.",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                protectedError?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                Button(
+                    onClick = {
+                        val lines = protectedInput.lines().filter { it.isNotBlank() }
+                        val valid = lines.all { line ->
+                            val parts = line.split("|")
+                            val times = parts.firstOrNull()?.split("-") ?: emptyList()
+                            parts.size == 2 && parts[1].isNotBlank() && times.size == 2 &&
+                                runCatching { LocalTime.parse(times[0]); LocalTime.parse(times[1]) }.isSuccess &&
+                                times[0] != times[1]
+                        }
+                        if (valid) {
+                            onProtectedTimesChange(protectedInput.trim())
+                            protectedError = null
+                        } else {
+                            protectedError = "Format tidak valid. Contoh: 12:00-13:00|Makan"
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Simpan Protected Time") }
+                Text(
+                    "Contoh default: makan, waktu keluarga, dan tidur. Hapus baris jika tidak ingin memblokir waktu tersebut.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Penyimpanan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Data tugas, habit, dan catatan tersimpan secara lokal menggunakan Room. Gunakan menu Backup & Restore untuk membuat atau memulihkan salinan data.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Data tugas, habit, dan catatan tersimpan secara lokal menggunakan Room. Gunakan menu Backup & Restore untuk membuat atau memulihkan salinan data.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Tentang PaDayFlow", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Versi 0.1.0 · Aplikasi produktivitas pribadi · Offline-first",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Versi 0.1.0 · Aplikasi produktivitas pribadi · Offline-first",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
