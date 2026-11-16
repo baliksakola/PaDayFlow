@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TaskEntity::class, HabitEntity::class, HabitLogEntity::class, NoteEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class PaDayFlowDatabase : RoomDatabase() {
@@ -42,6 +42,13 @@ abstract class PaDayFlowDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE tasks ADD COLUMN scheduledStartAt INTEGER")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN scheduledEndAt INTEGER")
+            }
+        }
+
         @Volatile
         private var INSTANCE: PaDayFlowDatabase? = null
 
@@ -51,7 +58,7 @@ abstract class PaDayFlowDatabase : RoomDatabase() {
                     context.applicationContext,
                     PaDayFlowDatabase::class.java,
                     "padayflow.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build().also { INSTANCE = it }
             }
     }
