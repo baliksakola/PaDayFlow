@@ -583,11 +583,11 @@ private fun SettingsScreen(
                     TimePickerField("Mulai", workdayStartInput, {
                         workdayStartInput = it
                         workdayError = null
-                    })
+                    }, modifier = Modifier.weight(1f))
                     TimePickerField("Selesai", workdayEndInput, {
                         workdayEndInput = it
                         workdayError = null
-                    })
+                    }, modifier = Modifier.weight(1f))
                 }
                 workdayError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 val parsedStart = runCatching { LocalTime.parse(workdayStartInput) }.getOrNull()
@@ -1164,7 +1164,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
 }
 
 @Composable
-private fun TimePickerField(label: String, value: String, onTimeSelected: (String) -> Unit, supportingText: String? = null) {
+private fun TimePickerField(label: String, value: String, onTimeSelected: (String) -> Unit, supportingText: String? = null, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val parsedTime = remember(value) { runCatching { LocalTime.parse(value) }.getOrNull() }
     OutlinedTextField(
@@ -1196,7 +1196,7 @@ private fun TimePickerField(label: String, value: String, onTimeSelected: (Strin
             }
         },
         singleLine = true,
-        modifier = Modifier.fillMaxWidth().clickable {
+        modifier = modifier.fillMaxWidth().clickable {
             val now = LocalTime.now()
             android.app.TimePickerDialog(
                 context,
