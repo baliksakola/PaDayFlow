@@ -13,6 +13,15 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE type = :type ORDER BY updatedAt DESC")
     fun observeByType(type: String): Flow<List<NoteEntity>>
 
+    @Query("SELECT * FROM notes")
+    suspend fun getAllForBackup(): List<NoteEntity>
+
+    @Query("DELETE FROM notes")
+    suspend fun clearForRestore()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllForRestore(items: List<NoteEntity>)
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(note: NoteEntity)
 
