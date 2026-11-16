@@ -19,8 +19,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-data class ProposedTaskSlot(val task: TaskEntity, val startAt: Long, val endAt: Long)
-
 @Composable
 internal fun DailyPlanningScreen(
     tasks: List<TaskEntity>,
