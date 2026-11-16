@@ -49,7 +49,8 @@ internal object TimeBlockPlanner {
         // Their original date is preserved until the user approves the replacement slot.
         val candidates = active.filter {
             it.scheduledStartAt == null &&
-                (it.startAt == null || (it.startAt < startOfDay && !belongsToDate(it.startAt)))
+                (it.startAt == null || belongsToDate(it.startAt) ||
+                    (it.startAt < startOfDay && !belongsToDate(it.startAt)))
         }
             .sortedWith(compareBy<TaskEntity>(
                 { when (it.priority) { "Mendesak" -> 0; "Tinggi" -> 1; "Normal" -> 2; else -> 3 } },
@@ -104,10 +105,17 @@ internal object TimeBlockPlanner {
         val proposed = mutableListOf<ProposedTaskSlot>()
         var proposedMinutes = 0
         var cursor = dayStartAt
+        // Today's date-only tasks are already included in plannedMinutes. Add their
+        // durations back to the proposal budget so scheduling them does not double-count.
+        val alreadyCountedCandidateMinutes = candidates
+            .filter { candidate -> todayTasks.any { it.id == candidate.id } }
+            .sumOf { it.estimatedMinutes.coerceAtLeast(0) }
+        val proposalBudget = (capacityMinutes - plannedMinutes + alreadyCountedCandidateMinutes)
+            .coerceAtLeast(0)
 
         for (task in candidates) {
             val duration = task.estimatedMinutes
-            if (duration <= 0 || proposedMinutes + duration > (capacityMinutes - plannedMinutes).coerceAtLeast(0)) continue
+            if (duration <= 0 || proposedMinutes + duration > proposalBudget) continue
             val durationMillis = duration * 60_000L
             var slotStart = cursor
             while (slotStart + durationMillis <= dayEndAt) {
