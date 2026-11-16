@@ -16,6 +16,7 @@ import com.padayflow.app.data.TaskEntity
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -26,6 +27,7 @@ data class ProposedTaskSlot(val task: TaskEntity, val startAt: Long, val endAt: 
 internal fun DailyPlanningScreen(
     tasks: List<TaskEntity>,
     productiveHours: Int,
+    protectedTimes: String,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onOpenTask: (TaskEntity) -> Unit,
@@ -51,6 +53,24 @@ internal fun DailyPlanningScreen(
         val end = task.scheduledEndAt
         if (start != null && end != null && end > start) start to end else null
     }.toMutableList()
+    val protectedSlots = buildList {
+        val lines = protectedTimes.lines().filter { it.isNotBlank() }
+        for (offset in -1L..0L) {
+            val date = today.plusDays(offset)
+            for (line in lines) {
+                val parts = line.split("|")
+                val times = parts.firstOrNull()?.split("-") ?: emptyList()
+                if (parts.size != 2 || times.size != 2) continue
+                val startTime = runCatching { LocalTime.parse(times[0]) }.getOrNull() ?: continue
+                val endTime = runCatching { LocalTime.parse(times[1]) }.getOrNull() ?: continue
+                val start = date.atTime(startTime).atZone(zone).toInstant().toEpochMilli()
+                val endDate = if (endTime <= startTime) date.plusDays(1) else date
+                val end = endDate.atTime(endTime).atZone(zone).toInstant().toEpochMilli()
+                if (end > dayStartSafe(today, zone) && start < dayEndSafe(today, zone)) add(start to end)
+            }
+        }
+    }
+    existingSlots += protectedSlots
     val proposedSlots = mutableListOf<ProposedTaskSlot>()
     var proposedMinutes = 0
     val dayStart = today.atTime(LocalTime.of(8, 0)).atZone(zone).toInstant().toEpochMilli()
@@ -115,6 +135,7 @@ internal fun DailyPlanningScreen(
                 }
             }
         }
+        Text("Waktu terlindungi: " + protectedTimes.lines().count { it.isNotBlank() } + " blok", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         Text("Usulan penjadwalan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Tugas tanpa tanggal mulai diurutkan berdasarkan prioritas dan deadline. Tidak ada jadwal yang diubah sebelum disetujui.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -150,7 +171,13 @@ internal fun DailyPlanningScreen(
                 modifier = Modifier.clickable { onOpenTask(task) }
             )
         }
-        Text("Usulan dibuat berurutan mulai pukul 08:00, menghindari blok waktu yang sudah terisi, dan dibatasi sampai pukul 20:00. Semua perubahan hanya disimpan setelah disetujui.",
+        Text("Usulan dibuat mulai pukul 08:00, menghindari jadwal tugas dan Protected Time, serta dibatasi sampai pukul 20:00. Semua perubahan hanya disimpan setelah disetujui.",
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+private fun dayStartSafe(date: LocalDate, zone: ZoneId): Long =
+    date.atTime(LocalTime.of(8, 0)).atZone(zone).toInstant().toEpochMilli()
+
+private fun dayEndSafe(date: LocalDate, zone: ZoneId): Long =
+    date.atTime(LocalTime.of(20, 0)).atZone(zone).toInstant().toEpochMilli()
