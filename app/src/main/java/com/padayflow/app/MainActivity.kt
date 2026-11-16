@@ -108,10 +108,10 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
         when (tab) {
             0 -> Dashboard(tasks, Modifier.padding(padding), onOpenTask = { editing = it })
             1 -> MyDay(tasks, Modifier.padding(padding),
-                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } } },
+                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             2 -> TaskList(tasks, Modifier.padding(padding), title = "Semua tugas",
-                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } } },
+                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             3 -> CalendarScreen(tasks, Modifier.padding(padding), onEdit = { editing = it })
             4 -> when {
@@ -1073,6 +1073,10 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
     var startDate by remember(task?.id) { mutableStateOf(task?.startAt?.let(::formatDate).orEmpty()) }
     var scheduledStartTime by remember(task?.id) { mutableStateOf(task?.scheduledStartAt?.let(::formatTime).orEmpty()) }
     var scheduledEndTime by remember(task?.id) { mutableStateOf(task?.scheduledEndAt?.let(::formatTime).orEmpty()) }
+    var recurrenceRule by remember(task?.id) { mutableStateOf(task?.recurrenceRule ?: "NONE") }
+    var recurrenceInterval by remember(task?.id) { mutableStateOf((task?.recurrenceInterval ?: 1).toString()) }
+    var recurrenceEnd by remember(task?.id) { mutableStateOf(task?.recurrenceEndAt?.let(::formatDate).orEmpty()) }
+    var recurrenceMenu by remember { mutableStateOf(false) }
     var deadline by remember(task?.id) { mutableStateOf(task?.deadlineAt?.let(::formatDate).orEmpty()) }
     var estimate by remember(task?.id) { mutableStateOf(if (task == null || task.estimatedMinutes == 0) "" else task.estimatedMinutes.toString()) }
     var reminder by remember(task?.id) { mutableStateOf(task?.reminderAt?.let(::formatDate).orEmpty()) }
@@ -1122,6 +1126,19 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                     supportingText = { Text("Gunakan tanggal mulai di atas. Contoh: 08:00") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(scheduledEndTime, { scheduledEndTime = it }, label = { Text("Jam selesai (HH:mm)") },
                     supportingText = { Text("Contoh: 09:30") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("Pengulangan", style = MaterialTheme.typography.labelLarge)
+                Box {
+                    TextButton(onClick = { recurrenceMenu = true }) { Text("Ulangi: " + when (recurrenceRule) { "DAILY" -> "Setiap hari"; "WEEKLY" -> "Setiap minggu"; "MONTHLY" -> "Setiap bulan"; else -> "Tidak berulang" } + " ▾") }
+                    DropdownMenu(recurrenceMenu, { recurrenceMenu = false }) {
+                        listOf("NONE" to "Tidak berulang", "DAILY" to "Harian", "WEEKLY" to "Mingguan", "MONTHLY" to "Bulanan").forEach { (value, label) ->
+                            DropdownMenuItem(text = { Text(label) }, onClick = { recurrenceRule = value; recurrenceMenu = false })
+                        }
+                    }
+                }
+                if (recurrenceRule != "NONE") {
+                    OutlinedTextField(recurrenceInterval, { recurrenceInterval = it.filter(Char::isDigit).take(3) }, label = { Text("Interval pengulangan") }, supportingText = { Text("1 = setiap periode; 2 = setiap dua periode.") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(recurrenceEnd, { recurrenceEnd = it }, label = { Text("Berakhir pada (YYYY-MM-DD, opsional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
                 OutlinedTextField(estimate, { estimate = it.filter(Char::isDigit) }, label = { Text("Estimasi durasi (menit)") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(reminder, { reminder = it }, label = { Text("Tanggal pengingat (YYYY-MM-DD)") },
@@ -1137,6 +1154,8 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                 val remind = parseDate(reminder)
                 val scheduledStart = parseDateTime(startDate, scheduledStartTime)
                 val scheduledEnd = parseDateTime(startDate, scheduledEndTime)
+                val repeatUntil = parseDate(recurrenceEnd)
+                val repeatEvery = recurrenceInterval.toIntOrNull()
                 val invalid = listOf(startDate to start, deadline to due, reminder to remind)
                     .firstOrNull { it.first.isNotBlank() && it.second == null }
                 when {
@@ -1147,6 +1166,9 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                     (scheduledStartTime.isBlank() != scheduledEndTime.isBlank()) -> validation = "Jam mulai dan jam selesai harus diisi berpasangan."
                     scheduledStartTime.isNotBlank() && (scheduledStart == null || scheduledEnd == null) -> validation = "Format jam harus HH:mm, contoh 08:30."
                     scheduledStart != null && scheduledEnd != null && scheduledEnd <= scheduledStart -> validation = "Jam selesai harus setelah jam mulai."
+                    recurrenceEnd.isNotBlank() && repeatUntil == null -> validation = "Tanggal akhir pengulangan harus YYYY-MM-DD."
+                    recurrenceRule != "NONE" && (repeatEvery == null || repeatEvery !in 1..365) -> validation = "Interval pengulangan harus 1–365."
+                    recurrenceRule != "NONE" && start == null -> validation = "Isi tanggal mulai untuk tugas berulang."
                     else -> {
                         validation = null
                         onSave(TaskEntity(
@@ -1163,7 +1185,10 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                             notes = notes.trim(),
                             createdAt = task?.createdAt ?: System.currentTimeMillis(),
                             scheduledStartAt = scheduledStart,
-                            scheduledEndAt = scheduledEnd
+                            scheduledEndAt = scheduledEnd,
+                            recurrenceRule = recurrenceRule,
+                            recurrenceInterval = if (recurrenceRule == "NONE") 1 else (repeatEvery ?: 1),
+                            recurrenceEndAt = if (recurrenceRule == "NONE") null else repeatUntil
                         ))
                     }
                 }
@@ -1173,6 +1198,29 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
     )
 }
 
+private suspend fun completeTaskAndScheduleNext(task: TaskEntity, dao: TaskDao) {
+    if (task.status == "Selesai") return
+    dao.updateStatus(task.id, "Selesai")
+    if (task.recurrenceRule == "NONE") return
+    val zone = ZoneId.systemDefault()
+    val baseDate = task.startAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: LocalDate.now()
+    val interval = task.recurrenceInterval.coerceIn(1, 365)
+    val nextDate = when (task.recurrenceRule) {
+        "DAILY" -> baseDate.plusDays(interval.toLong())
+        "WEEKLY" -> baseDate.plusWeeks(interval.toLong())
+        "MONTHLY" -> baseDate.plusMonths(interval.toLong())
+        else -> return
+    }
+    val nextStart = nextDate.atStartOfDay(zone).toInstant().toEpochMilli()
+    if (task.recurrenceEndAt != null && nextStart > task.recurrenceEndAt) return
+    val oldDeadline = task.deadlineAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+    val deadline = oldDeadline?.let { nextDate.plusDays(java.time.temporal.ChronoUnit.DAYS.between(baseDate, it)) }
+    fun shiftTime(value: Long?): Long? = value?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime().let { time -> nextDate.atTime(time).atZone(zone).toInstant().toEpochMilli() } }
+    dao.insert(task.copy(id = 0, status = "Belum dikerjakan", startAt = nextStart,
+        deadlineAt = deadline?.atStartOfDay(zone)?.toInstant()?.toEpochMilli(),
+        scheduledStartAt = shiftTime(task.scheduledStartAt), scheduledEndAt = shiftTime(task.scheduledEndAt),
+        reminderAt = null, createdAt = System.currentTimeMillis()))
+}
 private fun calculateHabitStreak(completedDates: Set<String>, today: LocalDate): Int {
     var date = if (today.toString() in completedDates) today else today.minusDays(1)
     var streak = 0
