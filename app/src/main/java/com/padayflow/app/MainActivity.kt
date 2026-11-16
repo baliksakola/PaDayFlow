@@ -119,7 +119,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
         when (tab) {
             0 -> Dashboard(tasks, Modifier.padding(padding), onOpenTask = { editing = it })
             1 -> MyDay(tasks, Modifier.padding(padding),
-                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao) } } },
+                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao, context) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             2 -> TaskList(tasks, Modifier.padding(padding), title = "Semua tugas",
                 onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao) } } },
@@ -1225,7 +1225,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
     )
 }
 
-private suspend fun completeTaskAndScheduleNext(task: TaskEntity, dao: TaskDao) {
+private suspend fun completeTaskAndScheduleNext(task: TaskEntity, dao: TaskDao, context: android.content.Context) {
     if (task.status == "Selesai") return
     dao.updateStatus(task.id, "Selesai")
     if (task.recurrenceRule == "NONE") return
@@ -1243,10 +1243,14 @@ private suspend fun completeTaskAndScheduleNext(task: TaskEntity, dao: TaskDao) 
     val oldDeadline = task.deadlineAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
     val deadline = oldDeadline?.let { nextDate.plusDays(java.time.temporal.ChronoUnit.DAYS.between(baseDate, it)) }
     fun shiftTime(value: Long?): Long? = value?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime().let { time -> nextDate.atTime(time).atZone(zone).toInstant().toEpochMilli() } }
-    dao.insert(task.copy(id = 0, status = "Belum dikerjakan", startAt = nextStart,
+    val nextTask = task.copy(id = 0, status = "Belum dikerjakan", startAt = nextStart,
         deadlineAt = deadline?.atStartOfDay(zone)?.toInstant()?.toEpochMilli(),
         scheduledStartAt = shiftTime(task.scheduledStartAt), scheduledEndAt = shiftTime(task.scheduledEndAt),
-        reminderAt = null, createdAt = System.currentTimeMillis()))
+        reminderAt = shiftTime(task.reminderAt), createdAt = System.currentTimeMillis())
+    val nextId = dao.insert(nextTask)
+    nextTask.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let {
+        ReminderScheduler.schedule(context, nextId, nextTask.title, it)
+    }
 }
 private fun calculateHabitStreak(completedDates: Set<String>, today: LocalDate): Int {
     var date = if (today.toString() in completedDates) today else today.minusDays(1)
