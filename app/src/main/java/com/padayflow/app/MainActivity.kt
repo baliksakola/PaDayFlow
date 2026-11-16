@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.padayflow.app.data.PaDayFlowDatabase
 import com.padayflow.app.data.TaskDao
 import com.padayflow.app.data.TaskEntity
@@ -275,7 +276,7 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("PADAYFLOW", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, letterSpacing = androidx.compose.ui.unit.sp(1.8f))
+                Text("PADAYFLOW", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8f.sp)
                 Text(dateLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Icon(Icons.Outlined.WbSunny, contentDescription = "Hari ini", modifier = Modifier.padding(11.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer) }
