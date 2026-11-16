@@ -33,6 +33,18 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Run unit tests
+        run: gradle :app:testDebugUnitTest
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PaDayFlow-unit-test-reports
+          path: app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Build debug APK
         run: gradle :app:assembleDebug
 
