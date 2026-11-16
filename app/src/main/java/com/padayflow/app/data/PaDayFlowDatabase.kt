@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TaskEntity::class, HabitEntity::class, HabitLogEntity::class, NoteEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class PaDayFlowDatabase : RoomDatabase() {
@@ -49,6 +49,14 @@ abstract class PaDayFlowDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE tasks ADD COLUMN recurrenceRule TEXT NOT NULL DEFAULT 'NONE'")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN recurrenceInterval INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE tasks ADD COLUMN recurrenceEndAt INTEGER")
+            }
+        }
+
         @Volatile
         private var INSTANCE: PaDayFlowDatabase? = null
 
@@ -58,7 +66,7 @@ abstract class PaDayFlowDatabase : RoomDatabase() {
                     context.applicationContext,
                     PaDayFlowDatabase::class.java,
                     "padayflow.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build().also { INSTANCE = it }
             }
     }
