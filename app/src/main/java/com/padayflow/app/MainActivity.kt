@@ -58,6 +58,10 @@ class MainActivity : ComponentActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7101)
         }
         val database = PaDayFlowDatabase.getInstance(applicationContext)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val pendingReminders = database.taskDao().getTasksWithPendingReminders(System.currentTimeMillis())
+            ReminderScheduler.reconcile(applicationContext, pendingReminders)
+        }
         val settings = applicationContext.dataStore
         val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
