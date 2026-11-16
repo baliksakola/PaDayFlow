@@ -32,7 +32,7 @@ internal object ReminderScheduler {
         val delay = (triggerAt - System.currentTimeMillis()).coerceAtLeast(0L)
         val request = OneTimeWorkRequestBuilder<TaskReminderWorker>()
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-            .setInputData(workDataOf("taskId" to taskId, "title" to title))
+            .setInputData(workDataOf("taskId" to taskId, "title" to title, "expectedTriggerAt" to triggerAt))
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork("task-reminder-$taskId", androidx.work.ExistingWorkPolicy.REPLACE, request)
     }
@@ -55,13 +55,15 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
     override fun doWork(): Result {
         val taskId = inputData.getLong("taskId", -1L)
         val fallbackTitle = inputData.getString("title") ?: "Tugas PaDayFlow"
-        if (taskId <= 0) return Result.failure()
+        val expectedTriggerAt = inputData.getLong("expectedTriggerAt", -1L)
+        if (taskId <= 0 || expectedTriggerAt <= 0L) return Result.failure()
         val task = try {
             runBlocking(Dispatchers.IO) { PaDayFlowDatabase.getInstance(applicationContext).taskDao().getTaskById(taskId) }
         } catch (_: Exception) {
             return Result.retry()
         }
-        if (task == null || task.status == "Selesai" || task.status == "Dibatalkan") {
+        if (task == null || task.status == "Selesai" || task.status == "Dibatalkan" ||
+            task.reminderAt != expectedTriggerAt || expectedTriggerAt > System.currentTimeMillis()) {
             NotificationManagerCompat.from(applicationContext).cancel(taskId.toInt())
             return Result.success()
         }
