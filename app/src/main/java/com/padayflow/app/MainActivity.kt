@@ -580,12 +580,14 @@ private fun SettingsScreen(
                 Text("Daily Planning hanya akan menempatkan usulan tugas di dalam rentang ini. Protected Time dan jadwal yang sudah ada tetap dihindari.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = workdayStartInput, onValueChange = { workdayStartInput = it; workdayError = null },
-                        label = { Text("Mulai") }, placeholder = { Text("08:00") }, singleLine = true,
-                        modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = workdayEndInput, onValueChange = { workdayEndInput = it; workdayError = null },
-                        label = { Text("Selesai") }, placeholder = { Text("20:00") }, singleLine = true,
-                        modifier = Modifier.weight(1f))
+                    TimePickerField("Mulai", workdayStartInput, {
+                        workdayStartInput = it
+                        workdayError = null
+                    })
+                    TimePickerField("Selesai", workdayEndInput, {
+                        workdayEndInput = it
+                        workdayError = null
+                    })
                 }
                 workdayError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 val parsedStart = runCatching { LocalTime.parse(workdayStartInput) }.getOrNull()
@@ -601,7 +603,7 @@ private fun SettingsScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Simpan rentang jam kerja") }
-                Text("Format 24 jam. Contoh 08:00–17:00. Rentang harus berada dalam hari yang sama.",
+                Text("Pilih jam melalui pemilih waktu. Jam selesai harus lebih akhir daripada jam mulai dan berada pada hari yang sama.",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
