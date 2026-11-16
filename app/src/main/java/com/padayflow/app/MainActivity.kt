@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
+import androidx.room.withTransaction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
@@ -139,10 +140,10 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
         when (tab) {
             0 -> Dashboard(tasks, Modifier.padding(padding), onOpenTask = { editing = it })
             1 -> MyDay(tasks, Modifier.padding(padding),
-                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao, context) } } },
+                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, database, context) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             2 -> TaskList(tasks, Modifier.padding(padding), title = "Semua tugas",
-                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao, context) } } },
+                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, database, context) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             3 -> CalendarScreen(tasks, Modifier.padding(padding), onEdit = { editing = it })
             4 -> when {
@@ -1344,34 +1345,32 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
     )
 }
 
-private suspend fun completeTaskAndScheduleNext(task: TaskEntity, dao: TaskDao, context: android.content.Context) {
-    if (task.status == "Selesai") return
-    dao.updateStatus(task.id, "Selesai")
-    ReminderScheduler.cancel(context, task.id)
-    if (task.recurrenceRule == "NONE") return
-    val zone = ZoneId.systemDefault()
-    val baseDate = task.startAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: LocalDate.now()
-    val interval = task.recurrenceInterval.coerceIn(1, 365)
-    val nextDate = when (task.recurrenceRule) {
-        "DAILY" -> baseDate.plusDays(interval.toLong())
-        "WEEKLY" -> baseDate.plusWeeks(interval.toLong())
-        "MONTHLY" -> baseDate.plusMonths(interval.toLong())
-        else -> return
+private suspend fun completeTaskAndScheduleNext(
+    task: TaskEntity,
+    database: PaDayFlowDatabase,
+    context: android.content.Context
+) {
+    val dao = database.taskDao()
+    val completion = database.withTransaction {
+        val currentTask = dao.getTaskById(task.id)
+        if (currentTask == null || dao.completeIfActive(task.id) != 1) {
+            Triple(false, null, null)
+        } else {
+            val nextTask = RecurringTaskFactory.next(currentTask)
+            val nextId = nextTask?.let { dao.insert(it) }
+            Triple(true, nextTask, nextId)
+        }
     }
-    val nextStart = nextDate.atStartOfDay(zone).toInstant().toEpochMilli()
-    if (task.recurrenceEndAt != null && nextStart > task.recurrenceEndAt) return
-    val oldDeadline = task.deadlineAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
-    val deadline = oldDeadline?.let { nextDate.plusDays(java.time.temporal.ChronoUnit.DAYS.between(baseDate, it)) }
-    fun shiftTime(value: Long?): Long? = value?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime().let { time -> nextDate.atTime(time).atZone(zone).toInstant().toEpochMilli() } }
-    val nextTask = task.copy(id = 0, status = "Belum dikerjakan", startAt = nextStart,
-        deadlineAt = deadline?.atStartOfDay(zone)?.toInstant()?.toEpochMilli(),
-        scheduledStartAt = shiftTime(task.scheduledStartAt), scheduledEndAt = shiftTime(task.scheduledEndAt),
-        reminderAt = shiftTime(task.reminderAt), createdAt = System.currentTimeMillis())
-    val nextId = dao.insert(nextTask)
-    nextTask.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let {
-        ReminderScheduler.schedule(context, nextId, nextTask.title, it)
+    ReminderScheduler.cancel(context, task.id)
+    val nextTask = completion.second
+    val nextId = completion.third
+    if (nextTask != null && nextId != null) {
+        nextTask.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let {
+            ReminderScheduler.schedule(context, nextId, nextTask.title, it)
+        }
     }
 }
+
 private fun calculateHabitStreak(completedDates: Set<String>, today: LocalDate): Int {
     var date = if (today.toString() in completedDates) today else today.minusDays(1)
     var streak = 0
