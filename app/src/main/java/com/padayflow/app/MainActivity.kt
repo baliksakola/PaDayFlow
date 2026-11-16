@@ -151,7 +151,12 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
 
     if (adding) TaskEditorDialog(task = null, onDismiss = { adding = false }, onSave = { task ->
         scope.launch {
-            withContext(Dispatchers.IO) { dao.insert(task) }
+            withContext(Dispatchers.IO) {
+                val newId = dao.insert(task)
+                if (task.reminderAt != null && task.reminderAt > System.currentTimeMillis()) {
+                    ReminderScheduler.schedule(this@MainActivity, newId, task.title, task.reminderAt)
+                }
+            }
             adding = false
             tab = 2
         }
@@ -159,7 +164,13 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
     editing?.let { task ->
         TaskEditorDialog(task = task, onDismiss = { editing = null }, onSave = { updated ->
             scope.launch {
-                withContext(Dispatchers.IO) { dao.update(updated) }
+                withContext(Dispatchers.IO) {
+                    dao.update(updated)
+                    ReminderScheduler.cancel(this@MainActivity, updated.id)
+                    if (updated.reminderAt != null && updated.reminderAt > System.currentTimeMillis()) {
+                        ReminderScheduler.schedule(this@MainActivity, updated.id, updated.title, updated.reminderAt)
+                    }
+                }
                 editing = null
             }
         })
@@ -1080,6 +1091,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
     var deadline by remember(task?.id) { mutableStateOf(task?.deadlineAt?.let(::formatDate).orEmpty()) }
     var estimate by remember(task?.id) { mutableStateOf(if (task == null || task.estimatedMinutes == 0) "" else task.estimatedMinutes.toString()) }
     var reminder by remember(task?.id) { mutableStateOf(task?.reminderAt?.let(::formatDate).orEmpty()) }
+    var reminderTime by remember(task?.id) { mutableStateOf(task?.reminderAt?.let(::formatTime).orEmpty()) }
     var notes by remember(task?.id) { mutableStateOf(task?.notes.orEmpty()) }
     var categoryMenu by remember { mutableStateOf(false) }
     var priorityMenu by remember { mutableStateOf(false) }
@@ -1143,6 +1155,9 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                     singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(reminder, { reminder = it }, label = { Text("Tanggal pengingat (YYYY-MM-DD)") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(reminderTime, { reminderTime = it }, label = { Text("Jam pengingat (HH:mm)") },
+                    supportingText = { Text("Opsional. Jika kosong, pengingat dijadwalkan pukul 09:00.") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(notes, { notes = it }, label = { Text("Catatan") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                 validation?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
@@ -1151,7 +1166,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
             Button(onClick = {
                 val start = parseDate(startDate)
                 val due = parseDate(deadline)
-                val remind = parseDate(reminder)
+                val remind = if (reminder.isBlank()) null else parseDateTime(reminder, reminderTime.ifBlank { "09:00" })
                 val scheduledStart = parseDateTime(startDate, scheduledStartTime)
                 val scheduledEnd = parseDateTime(startDate, scheduledEndTime)
                 val repeatUntil = parseDate(recurrenceEnd)
@@ -1161,6 +1176,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                 when {
                     title.isBlank() -> validation = "Nama tugas wajib diisi."
                     invalid != null -> validation = "Format tanggal harus YYYY-MM-DD."
+                    reminder.isNotBlank() && remind == null -> validation = "Tanggal atau jam pengingat tidak valid. Gunakan YYYY-MM-DD dan HH:mm."
                     start != null && due != null && due < start -> validation = "Deadline tidak boleh sebelum tanggal mulai."
                     (scheduledStartTime.isNotBlank() || scheduledEndTime.isNotBlank()) && start == null -> validation = "Isi tanggal mulai sebelum mengatur jam pengerjaan."
                     (scheduledStartTime.isBlank() != scheduledEndTime.isBlank()) -> validation = "Jam mulai dan jam selesai harus diisi berpasangan."
