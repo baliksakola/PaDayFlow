@@ -104,7 +104,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
-    val context = LocalContext.current.applicationContext
+    val activityContext = LocalContext.current
+    val context = activityContext.applicationContext
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -140,7 +141,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
             else -> {
                 val now = SystemClock.elapsedRealtime()
                 if (now - lastBackPressedAt <= 2_000L) {
-                    (context as? android.app.Activity)?.finish()
+                    (activityContext as? android.app.Activity)?.finish()
                 } else {
                     lastBackPressedAt = now
                     Toast.makeText(context, "Tekan sekali lagi untuk keluar", Toast.LENGTH_SHORT).show()
