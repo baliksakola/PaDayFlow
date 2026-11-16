@@ -12,6 +12,15 @@ interface TaskDao {
     @Query("SELECT * FROM tasks ORDER BY createdAt DESC")
     fun observeTasks(): Flow<List<TaskEntity>>
 
+    @Query("SELECT * FROM tasks ORDER BY createdAt DESC")
+    suspend fun getAllForBackup(): List<TaskEntity>
+
+    @Query("DELETE FROM tasks")
+    suspend fun clearForRestore()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllForRestore(items: List<TaskEntity>)
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(task: TaskEntity)
 
