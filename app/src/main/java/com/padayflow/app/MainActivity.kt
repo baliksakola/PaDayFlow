@@ -294,6 +294,7 @@ private fun HabitTrackerScreen(
                     val completedDates = logs.filter { it.habitId == habit.id && it.completed }.map { it.date }.toSet()
                     val doneToday = todayKey in completedDates
                     val weeklyCount = (0..6).count { weekStart.plusDays(it.toLong()).toString() in completedDates }
+                    val streak = calculateHabitStreak(completedDates, today)
                     var menuExpanded by remember(habit.id) { mutableStateOf(false) }
                     Card(modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -304,6 +305,8 @@ private fun HabitTrackerScreen(
                                     Text(habit.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
                                     Text("$weeklyCount / ${habit.targetPerWeek} kali minggu ini",
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Streak: $streak hari berturut-turut",
+                                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                                 }
                                 Box {
                                     IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "Menu kebiasaan") }
@@ -615,6 +618,16 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
     )
+}
+
+private fun calculateHabitStreak(completedDates: Set<String>, today: LocalDate): Int {
+    var date = if (today.toString() in completedDates) today else today.minusDays(1)
+    var streak = 0
+    while (date.toString() in completedDates) {
+        streak++
+        date = date.minusDays(1)
+    }
+    return streak
 }
 
 private fun parseDate(value: String): Long? {
