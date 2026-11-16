@@ -46,7 +46,7 @@ The Android application and product documentation will be developed incrementall
 
 ## Build
 
-The Android Gradle project is being bootstrapped. Build instructions will be finalized with the Gradle wrapper and CI workflow in the initial application scaffold.
+The repository includes an Android Gradle project and a GitHub Actions debug-build workflow. CI installs Gradle 8.13 and runs `gradle :app:assembleDebug` with JDK 17 and the Android SDK. A checked-in Gradle Wrapper is still pending; for local command-line builds, use Gradle 8.13 until the wrapper is added.
 
 ## License
 
