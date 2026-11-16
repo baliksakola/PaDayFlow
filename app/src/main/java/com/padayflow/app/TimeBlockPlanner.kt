@@ -82,12 +82,7 @@ internal object TimeBlockPlanner {
 
         val occupied = (scheduled.map { it.second } + protected).toMutableList()
         val protectedSlots = protected.map { interval ->
-            val sourceLine = raw.lineSequence().firstOrNull { line ->
-                val times = line.substringBefore("|").split("-")
-                times.size == 2 && runCatching { LocalTime.parse(times[0].trim()) }.getOrNull() != null &&
-                    runCatching { LocalTime.parse(times[1].trim()) }.getOrNull() != null
-            }
-            TimelineInterval(interval.start, interval.end, sourceLine?.substringAfter("|")?.trim()?.takeIf { it.isNotBlank() } ?: "Protected Time")
+            TimelineInterval(interval.start, interval.end, "Protected Time")
         }.distinctBy { it.startAt to it.endAt }.sortedBy { it.startAt }
         val mergedOccupied = occupied.sortedBy { it.start }.fold(mutableListOf<Interval>()) { merged, interval ->
             val last = merged.lastOrNull()
