@@ -136,8 +136,20 @@ internal fun BackupRestoreScreen(
                 Button(enabled = !busy, onClick = {
                     scope.launch {
                         busy = true
-                        val result = runCatching { withContext(Dispatchers.IO) { BackupManager.restore(database, backup) } }
-                        message = if (result.isSuccess) "Restore berhasil. Data lokal telah diganti sesuai file backup."
+                        val result = runCatching {
+                            withContext(Dispatchers.IO) {
+                                // Remove reminders belonging to the data being replaced.
+                                database.taskDao().getAllForBackup().forEach { task ->
+                                    ReminderScheduler.cancel(context, task.id)
+                                }
+                                BackupManager.restore(database, backup)
+                                // Rebuild future reminders from the restored task records.
+                                val pendingReminders = database.taskDao()
+                                    .getTasksWithPendingReminders(System.currentTimeMillis())
+                                ReminderScheduler.reconcile(context, pendingReminders)
+                            }
+                        }
+                        message = if (result.isSuccess) "Restore berhasil. Data lokal dan pengingat telah disesuaikan dengan file backup."
                             else "Restore gagal: ${result.exceptionOrNull()?.message ?: "kesalahan tidak diketahui"}"
                         parsedBackup = null
                         busy = false
