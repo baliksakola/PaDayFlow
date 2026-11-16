@@ -24,6 +24,8 @@ import com.padayflow.app.data.TaskEntity
 import com.padayflow.app.data.HabitDao
 import com.padayflow.app.data.HabitEntity
 import com.padayflow.app.data.HabitLogEntity
+import com.padayflow.app.data.NoteDao
+import com.padayflow.app.data.NoteEntity
 import com.padayflow.app.ui.theme.PaDayFlowTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -42,17 +44,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val dao = PaDayFlowDatabase.getInstance(applicationContext).taskDao()
-        setContent { PaDayFlowTheme { Surface(Modifier.fillMaxSize()) { PaDayFlowApp(dao, PaDayFlowDatabase.getInstance(applicationContext).habitDao()) } } }
+        setContent { PaDayFlowTheme { Surface(Modifier.fillMaxSize()) { PaDayFlowApp(dao, PaDayFlowDatabase.getInstance(applicationContext).habitDao(), PaDayFlowDatabase.getInstance(applicationContext).noteDao()) } } }
     }
 }
 
 @Composable
-private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao) {
+private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao) {
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<TaskEntity?>(null) }
     var showHabitTracker by remember { mutableStateOf(false) }
+    var openedNotesType by remember { mutableStateOf<String?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
@@ -80,8 +83,15 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao) {
                 onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             3 -> CalendarScreen(tasks, Modifier.padding(padding), onEdit = { editing = it })
-            4 -> if (showHabitTracker) HabitTrackerScreen(habitDao, Modifier.padding(padding), onBack = { showHabitTracker = false })
-                else MoreMenu(Modifier.padding(padding), onHabitClick = { showHabitTracker = true })
+            4 -> when {
+                openedNotesType != null -> NotesScreen(noteDao, openedNotesType!!, Modifier.padding(padding),
+                    onBack = { openedNotesType = null })
+                showHabitTracker -> HabitTrackerScreen(habitDao, Modifier.padding(padding), onBack = { showHabitTracker = false })
+                else -> MoreMenu(Modifier.padding(padding),
+                    onHabitClick = { showHabitTracker = true },
+                    onNotesClick = { openedNotesType = "NOTE" },
+                    onBrainDumpClick = { openedNotesType = "BRAIN_DUMP" })
+            }
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
     }
@@ -241,7 +251,7 @@ private fun TaskList(
 }
 
 @Composable
-private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit) {
+private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Lainnya", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Card(onClick = onHabitClick, modifier = Modifier.fillMaxWidth(),
@@ -257,8 +267,123 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit) {
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null)
             }
         }
+        Card(onClick = onNotesClick, modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.StickyNote2, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Notes", fontWeight = FontWeight.SemiBold)
+                    Text("Simpan catatan dan ide penting.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+        }
+        Card(onClick = onBrainDumpClick, modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Lightbulb, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Brain Dump", fontWeight = FontWeight.SemiBold)
+                    Text("Tuangkan ide dan pikiran tanpa struktur.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+        }
         Text("Modul lain akan ditambahkan bertahap.", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+@Composable
+private fun NotesScreen(dao: NoteDao, type: String, modifier: Modifier = Modifier, onBack: () -> Unit) {
+    val notes by dao.observeByType(type).collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
+    var editing by remember { mutableStateOf<NoteEntity?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    val isBrainDump = type == "BRAIN_DUMP"
+    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }
+            Column(Modifier.weight(1f)) {
+                Text(if (isBrainDump) "Brain Dump" else "Notes", style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold)
+                Text(if (isBrainDump) "Catat semua ide yang muncul." else "Kumpulan catatan pribadi.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = { adding = true }) { Icon(Icons.Outlined.Add, contentDescription = "Tambah catatan") }
+        }
+        if (notes.isEmpty()) {
+            EmptyState(if (isBrainDump) "Belum ada ide" else "Belum ada catatan",
+                "Tekan tombol + untuk mulai menulis.")
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(notes, key = { it.id }) { note ->
+                    Card(modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(note.title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
+                            if (note.content.isNotBlank()) Text(note.content, maxLines = 4,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { dao.delete(note) } } }) {
+                                    Text("Hapus", color = MaterialTheme.colorScheme.error)
+                                }
+                                TextButton(onClick = { editing = note }) { Text("Edit") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (adding) NoteEditorDialog(null, isBrainDump, onDismiss = { adding = false }, onSave = { title, content ->
+        scope.launch { withContext(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            dao.insert(NoteEntity(title = title, content = content, type = type, createdAt = now, updatedAt = now))
+        } }
+        adding = false
+    })
+    editing?.let { note ->
+        NoteEditorDialog(note, isBrainDump, onDismiss = { editing = null }, onSave = { title, content ->
+            scope.launch { withContext(Dispatchers.IO) {
+                dao.update(note.copy(title = title, content = content, updatedAt = System.currentTimeMillis()))
+            } }
+            editing = null
+        })
+    }
+}
+
+@Composable
+private fun NoteEditorDialog(
+    note: NoteEntity?,
+    isBrainDump: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    var title by remember(note?.id) { mutableStateOf(note?.title.orEmpty()) }
+    var content by remember(note?.id) { mutableStateOf(note?.content.orEmpty()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (note == null) if (isBrainDump) "Tulis Brain Dump" else "Catatan baru" else "Edit catatan") },
+        text = {
+            Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(title, { title = it }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text(if (isBrainDump) "Judul / ide utama" else "Judul catatan") }, singleLine = true)
+                OutlinedTextField(content, { content = it }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text(if (isBrainDump) "Tuangkan semua pikiran di sini..." else "Isi catatan") },
+                    minLines = 5)
+            }
+        },
+        confirmButton = {
+            Button(enabled = title.isNotBlank(), onClick = { onSave(title.trim(), content.trim()) }) { Text("Simpan") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
 }
 
 @Composable
