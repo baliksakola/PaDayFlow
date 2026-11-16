@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 private const val CHANNEL_ID = "padayflow_task_reminders"
@@ -69,6 +70,9 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
             return Result.success()
         }
         val title = task.title.ifBlank { fallbackTitle }
+        val snoozeMinutes = try {
+            runBlocking { applicationContext.dataStore.data.first()[REMINDER_SNOOZE_MINUTES] ?: 60 }
+        } catch (_: Exception) { 60 }
         createReminderChannel(applicationContext)
         val openIntent = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)
         val contentPending = openIntent?.let {
@@ -82,6 +86,7 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
             action = ACTION_SNOOZE
             putExtra("taskId", taskId)
             putExtra("title", title)
+            putExtra("snoozeMinutes", snoozeMinutes)
         }
         val completePending = PendingIntent.getBroadcast(applicationContext, taskId.toInt() + 100000, completeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val snoozePending = PendingIntent.getBroadcast(applicationContext, taskId.toInt() + 200000, snoozeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -94,7 +99,7 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
             .setAutoCancel(true)
             .setContentIntent(contentPending)
             .addAction(android.R.drawable.checkbox_on_background, "Selesai", completePending)
-            .addAction(android.R.drawable.ic_lock_idle_alarm, "Tunda 1 jam", snoozePending)
+            .addAction(android.R.drawable.ic_lock_idle_alarm, "Tunda " + if (snoozeMinutes < 60) "$snoozeMinutes menit" else if (snoozeMinutes == 60) "1 jam" else "2 jam", snoozePending)
             .build()
         return try {
             NotificationManagerCompat.from(applicationContext).notify(taskId.toInt(), notification)
@@ -144,7 +149,8 @@ class ReminderActionReceiver : BroadcastReceiver() {
             }
             ACTION_SNOOZE -> {
                 val title = intent.getStringExtra("title") ?: "Tugas PaDayFlow"
-                val snoozedUntil = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1)
+                val snoozeMinutes = intent.getIntExtra("snoozeMinutes", 60).coerceIn(15, 120)
+                val snoozedUntil = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(snoozeMinutes.toLong())
                 val pending = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
