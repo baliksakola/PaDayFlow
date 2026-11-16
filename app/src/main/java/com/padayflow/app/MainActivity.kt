@@ -6,12 +6,13 @@ import android.widget.Toast
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.map
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.lifecycleScope
 import androidx.room.withTransaction
@@ -59,10 +60,6 @@ private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7101)
-        }
         val database = PaDayFlowDatabase.getInstance(applicationContext)
         lifecycleScope.launch(Dispatchers.IO) {
             val allTasks = database.taskDao().getAllForBackup()
@@ -526,6 +523,11 @@ private fun SettingsScreen(
 
         val notificationContext = LocalContext.current
         var notificationPermissionRefresh by remember { mutableIntStateOf(0) }
+        val notificationPermissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            notificationPermissionRefresh++
+        }
         val notificationPermissionGranted = notificationPermissionRefresh >= 0 && (Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(notificationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
         Card(
@@ -545,14 +547,7 @@ private fun SettingsScreen(
                 if (!notificationPermissionGranted && Build.VERSION.SDK_INT >= 33) {
                     Button(
                         onClick = {
-                            (notificationContext as? android.app.Activity)?.let {
-                                ActivityCompat.requestPermissions(
-                                    it,
-                                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                                    7101
-                                )
-                                notificationPermissionRefresh++
-                            }
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Izinkan notifikasi") }
