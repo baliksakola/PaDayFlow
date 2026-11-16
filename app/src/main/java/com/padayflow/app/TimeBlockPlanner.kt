@@ -6,7 +6,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-internal data class ProposedTaskSlot(val task: TaskEntity, val startAt: Long, val endAt: Long)
+internal data class ProposedTaskSlot(val task: TaskEntity, val startAt: Long, val endAt: Long, val rationale: String, val deadlineNote: String)
 internal data class TaskTimeConflict(val first: TaskEntity, val second: TaskEntity)
 internal data class TimelineInterval(val startAt: Long, val endAt: Long, val label: String)
 internal data class DailyPlanResult(
@@ -118,7 +118,23 @@ internal object TimeBlockPlanner {
             }
             if (slotStart + durationMillis <= dayEndAt) {
                 val slotEnd = slotStart + durationMillis
-                proposed += ProposedTaskSlot(task, slotStart, slotEnd)
+                val priorityReason = when (task.priority) {
+                    "Mendesak" -> "Prioritas mendesak"
+                    "Tinggi" -> "Prioritas tinggi"
+                    "Rendah" -> "Prioritas rendah"
+                    else -> "Prioritas normal"
+                }
+                val deadlineNote = task.deadlineAt?.let { deadline ->
+                    val deadlineDate = java.time.Instant.ofEpochMilli(deadline).atZone(zone).toLocalDate()
+                    val days = java.time.temporal.ChronoUnit.DAYS.between(date, deadlineDate)
+                    when {
+                        days < 0 -> "Deadline terlambat ${-days} hari"
+                        days == 0L -> "Deadline hari ini"
+                        days == 1L -> "Deadline besok"
+                        else -> "Deadline ${days} hari lagi"
+                    }
+                } ?: "Tanpa deadline"
+                proposed += ProposedTaskSlot(task, slotStart, slotEnd, priorityReason, deadlineNote)
                 occupied += Interval(slotStart, slotEnd)
                 cursor = slotEnd
                 proposedMinutes += duration
