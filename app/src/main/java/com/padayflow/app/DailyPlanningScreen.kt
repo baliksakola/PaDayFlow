@@ -93,9 +93,36 @@ internal fun DailyPlanningScreen(
                 }
             }
         }
+        Text("Timeline hari ini", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        val timelineTasks = todayTasks.filter { it.scheduledStartAt != null && it.scheduledEndAt != null }
+            .sortedBy { it.scheduledStartAt }
+        if (timelineTasks.isEmpty()) {
+            Text("Belum ada time block yang disetujui untuk hari ini.", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall)
+        } else {
+            timelineTasks.forEach { task ->
+                val startLabel = Instant.ofEpochMilli(task.scheduledStartAt!!).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))
+                val endLabel = Instant.ofEpochMilli(task.scheduledEndAt!!).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))
+                Card(Modifier.fillMaxWidth().clickable { onOpenTask(task) },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text(startLabel, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Text(endLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(task.title, fontWeight = FontWeight.SemiBold)
+                            Text("${task.category} · ${task.status}", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
         Text("Waktu terlindungi: " + protectedTimes.lines().count { it.isNotBlank() } + " blok", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         Text("Usulan penjadwalan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Tugas tanpa tanggal mulai diurutkan berdasarkan prioritas dan deadline. Tidak ada jadwal yang diubah sebelum disetujui.",
+        Text("Tugas tanpa jadwal dan tugas tertunda yang belum selesai diurutkan berdasarkan prioritas dan deadline. Jadwal lama hanya diganti setelah disetujui.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (proposed.isEmpty()) {
             Text(
@@ -109,6 +136,11 @@ internal fun DailyPlanningScreen(
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         val slot = proposedSlots.first { it.task.id == task.id }
                         Text(task.title, fontWeight = FontWeight.SemiBold)
+                        val isOverdue = (task.startAt != null && task.startAt < startOfToday) ||
+                            (task.deadlineAt != null && task.deadlineAt < startOfToday)
+                        if (isOverdue) {
+                            AssistChip(onClick = { onOpenTask(task) }, label = { Text("Tertunda · perlu dijadwalkan ulang") })
+                        }
                         Text("${Instant.ofEpochMilli(slot.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(slot.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))} · ${task.priority} · ${task.estimatedMinutes} menit")
                         Text("${task.deadlineAt?.let { "Deadline ${Instant.ofEpochMilli(it).atZone(zone).toLocalDate()}" } ?: "Tanpa deadline"}",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
