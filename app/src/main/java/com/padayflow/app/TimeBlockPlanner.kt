@@ -85,21 +85,6 @@ internal object TimeBlockPlanner {
         val protectedSlots = protected.map { interval ->
             TimelineInterval(interval.start, interval.end, "Protected Time")
         }.distinctBy { it.startAt to it.endAt }.sortedBy { it.startAt }
-        val mergedOccupied = occupied.sortedBy { it.start }.fold(mutableListOf<Interval>()) { merged, interval ->
-            val last = merged.lastOrNull()
-            if (last == null || interval.start > last.end) merged += interval
-            else merged[merged.lastIndex] = Interval(last.start, maxOf(last.end, interval.end))
-            merged
-        }
-        val freeSlots = mutableListOf<TimelineInterval>()
-        var freeCursor = dayStartAt
-        for (interval in mergedOccupied) {
-            val clippedStart = interval.start.coerceAtLeast(dayStartAt)
-            val clippedEnd = interval.end.coerceAtMost(dayEndAt)
-            if (clippedStart > freeCursor) freeSlots += TimelineInterval(freeCursor, clippedStart, "Waktu kosong")
-            freeCursor = maxOf(freeCursor, clippedEnd)
-        }
-        if (freeCursor < dayEndAt) freeSlots += TimelineInterval(freeCursor, dayEndAt, "Waktu kosong")
         val plannedMinutes = todayTasks.sumOf { it.estimatedMinutes.coerceAtLeast(0) }
         val capacityMinutes = productiveHours.coerceIn(1, 16) * 60
         val proposed = mutableListOf<ProposedTaskSlot>()
@@ -148,6 +133,24 @@ internal object TimeBlockPlanner {
                 proposedMinutes += duration
             }
         }
+
+        // Calculate free gaps after proposals are placed so the timeline never labels
+        // a proposed task interval as simultaneously available time.
+        val mergedOccupied = occupied.sortedBy { it.start }.fold(mutableListOf<Interval>()) { merged, interval ->
+            val last = merged.lastOrNull()
+            if (last == null || interval.start > last.end) merged += interval
+            else merged[merged.lastIndex] = Interval(last.start, maxOf(last.end, interval.end))
+            merged
+        }
+        val freeSlots = mutableListOf<TimelineInterval>()
+        var freeCursor = dayStartAt
+        for (interval in mergedOccupied) {
+            val clippedStart = interval.start.coerceAtLeast(dayStartAt)
+            val clippedEnd = interval.end.coerceAtMost(dayEndAt)
+            if (clippedStart > freeCursor) freeSlots += TimelineInterval(freeCursor, clippedStart, "Waktu kosong")
+            freeCursor = maxOf(freeCursor, clippedEnd)
+        }
+        if (freeCursor < dayEndAt) freeSlots += TimelineInterval(freeCursor, dayEndAt, "Waktu kosong")
 
         return DailyPlanResult(
             todayTasks = todayTasks,
