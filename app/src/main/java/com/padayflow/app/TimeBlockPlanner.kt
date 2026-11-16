@@ -8,12 +8,15 @@ import java.time.format.DateTimeFormatter
 
 internal data class ProposedTaskSlot(val task: TaskEntity, val startAt: Long, val endAt: Long)
 internal data class TaskTimeConflict(val first: TaskEntity, val second: TaskEntity)
+internal data class TimelineInterval(val startAt: Long, val endAt: Long, val label: String)
 internal data class DailyPlanResult(
     val todayTasks: List<TaskEntity>,
     val candidates: List<TaskEntity>,
     val proposedSlots: List<ProposedTaskSlot>,
     val conflicts: List<TaskTimeConflict>,
     val protectedTimeConflicts: List<TaskEntity>,
+    val protectedSlots: List<TimelineInterval>,
+    val freeSlots: List<TimelineInterval>,
     val plannedMinutes: Int,
     val capacityMinutes: Int
 ) {
@@ -78,6 +81,29 @@ internal object TimeBlockPlanner {
         }.map { it.first }.distinctBy { it.id }
 
         val occupied = (scheduled.map { it.second } + protected).toMutableList()
+        val protectedSlots = protected.map { interval ->
+            val sourceLine = raw.lineSequence().firstOrNull { line ->
+                val times = line.substringBefore("|").split("-")
+                times.size == 2 && runCatching { LocalTime.parse(times[0].trim()) }.getOrNull() != null &&
+                    runCatching { LocalTime.parse(times[1].trim()) }.getOrNull() != null
+            }
+            TimelineInterval(interval.start, interval.end, sourceLine?.substringAfter("|")?.trim()?.takeIf { it.isNotBlank() } ?: "Protected Time")
+        }.distinctBy { it.startAt to it.endAt }.sortedBy { it.startAt }
+        val mergedOccupied = occupied.sortedBy { it.start }.fold(mutableListOf<Interval>()) { merged, interval ->
+            val last = merged.lastOrNull()
+            if (last == null || interval.start > last.end) merged += interval
+            else merged[merged.lastIndex] = Interval(last.start, maxOf(last.end, interval.end))
+            merged
+        }
+        val freeSlots = mutableListOf<TimelineInterval>()
+        var freeCursor = dayStartAt
+        for (interval in mergedOccupied) {
+            val clippedStart = interval.start.coerceAtLeast(dayStartAt)
+            val clippedEnd = interval.end.coerceAtMost(dayEndAt)
+            if (clippedStart > freeCursor) freeSlots += TimelineInterval(freeCursor, clippedStart, "Waktu kosong")
+            freeCursor = maxOf(freeCursor, clippedEnd)
+        }
+        if (freeCursor < dayEndAt) freeSlots += TimelineInterval(freeCursor, dayEndAt, "Waktu kosong")
         val plannedMinutes = todayTasks.sumOf { it.estimatedMinutes.coerceAtLeast(0) }
         val capacityMinutes = productiveHours.coerceIn(1, 16) * 60
         val proposed = mutableListOf<ProposedTaskSlot>()
@@ -110,6 +136,8 @@ internal object TimeBlockPlanner {
             proposedSlots = proposed,
             conflicts = conflicts,
             protectedTimeConflicts = protectedConflicts,
+            protectedSlots = protectedSlots,
+            freeSlots = freeSlots,
             plannedMinutes = plannedMinutes,
             capacityMinutes = capacityMinutes
         )
