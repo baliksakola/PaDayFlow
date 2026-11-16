@@ -189,4 +189,28 @@ class TimeBlockPlannerTest {
         assertTrue(result.proposedSlots.size <= 1)
         assertEquals(60, result.capacityMinutes)
     }
+    @Test
+    fun proposalExplainsPriorityAndDeadlineUrgency() {
+        val urgent = TaskEntity(
+            id = 31, title = "Laporan mendesak", estimatedMinutes = 45,
+            priority = "Mendesak", deadlineAt = at("00:00") + 24 * 60 * 60 * 1000L
+        )
+        val result = TimeBlockPlanner.plan(date, listOf(urgent), 6, "", zone)
+        val proposal = result.proposedSlots.single()
+
+        assertEquals("Prioritas mendesak", proposal.rationale)
+        assertEquals("Deadline besok", proposal.deadlineNote)
+    }
+
+    @Test
+    fun proposalFlagsOverdueDeadlineInItsExplanation() {
+        val overdue = TaskEntity(
+            id = 32, title = "Revisi", estimatedMinutes = 30,
+            deadlineAt = date.minusDays(2).atStartOfDay(zone).toInstant().toEpochMilli()
+        )
+        val result = TimeBlockPlanner.plan(date, listOf(overdue), 6, "", zone)
+
+        assertEquals("Deadline terlambat 2 hari", result.proposedSlots.single().deadlineNote)
+    }
+
 }
