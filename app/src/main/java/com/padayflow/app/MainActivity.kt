@@ -1,6 +1,8 @@
 package com.padayflow.app
 
 import android.os.Bundle
+import android.os.SystemClock
+import android.widget.Toast
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -10,6 +12,7 @@ import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.map
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.lifecycle.lifecycleScope
 import androidx.room.withTransaction
 import androidx.compose.foundation.layout.*
@@ -119,6 +122,32 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
     val scope = rememberCoroutineScope()
 
     var handledNotificationTaskId by remember { mutableLongStateOf(-1L) }
+    var lastBackPressedAt by remember { mutableLongStateOf(0L) }
+
+    BackHandler {
+        when {
+            editing != null -> editing = null
+            adding -> adding = false
+            deleting != null -> deleting = null
+            openedNotesType != null -> openedNotesType = null
+            showHabitTracker -> showHabitTracker = false
+            showSmartAssistant -> showSmartAssistant = false
+            showAnalytics -> showAnalytics = false
+            showSettings -> showSettings = false
+            showBackupRestore -> showBackupRestore = false
+            showDailyPlanning -> showDailyPlanning = false
+            tab != 0 -> tab = 0
+            else -> {
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastBackPressedAt <= 2_000L) {
+                    (context as? android.app.Activity)?.finish()
+                } else {
+                    lastBackPressedAt = now
+                    Toast.makeText(context, "Tekan sekali lagi untuk keluar", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
     LaunchedEffect(initialTaskId, tasks) {
         if (initialTaskId > 0L && handledNotificationTaskId != initialTaskId) {
             tasks.firstOrNull { it.id == initialTaskId }?.let {
