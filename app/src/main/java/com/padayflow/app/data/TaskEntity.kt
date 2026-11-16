@@ -18,5 +18,8 @@ data class TaskEntity(
     val notes: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val scheduledStartAt: Long? = null,
-    val scheduledEndAt: Long? = null
+    val scheduledEndAt: Long? = null,
+    val recurrenceRule: String = "NONE",
+    val recurrenceInterval: Int = 1,
+    val recurrenceEndAt: Long? = null
 )
