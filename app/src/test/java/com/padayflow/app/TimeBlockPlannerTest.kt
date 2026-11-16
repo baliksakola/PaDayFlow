@@ -91,6 +91,21 @@ class TimeBlockPlannerTest {
     }
 
     @Test
+    fun overdueUnfinishedTaskBecomesRescheduleCandidateWithoutMutatingOriginal() {
+        val yesterday = date.minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val overdue = TaskEntity(
+            id = 10, title = "Tugas tertunda", startAt = yesterday,
+            estimatedMinutes = 45, status = "Tertunda"
+        )
+        val result = TimeBlockPlanner.plan(date, listOf(overdue), 6, "", zone)
+
+        assertTrue(result.candidates.any { it.id == overdue.id })
+        assertTrue(result.todayTasks.none { it.id == overdue.id })
+        assertEquals(yesterday, overdue.startAt)
+        assertEquals(1, result.proposedSlots.size)
+    }
+
+    @Test
     fun scheduledTaskWithoutDateOnlyStartIsCountedInTodayPlan() {
         val scheduled = TaskEntity(
             id = 9, title = "Jadwal dari time block",
