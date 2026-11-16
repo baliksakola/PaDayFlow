@@ -213,4 +213,38 @@ class TimeBlockPlannerTest {
         assertEquals("Deadline terlambat 2 hari", result.proposedSlots.single().deadlineNote)
     }
 
+    @Test
+    fun todayDateOnlyTaskBecomesTimeBlockCandidateWithoutDoubleCountingCapacity() {
+        val todayTask = TaskEntity(
+            id = 41, title = "Buat laporan", startAt = date.atStartOfDay(zone).toInstant().toEpochMilli(),
+            estimatedMinutes = 90, priority = "Tinggi"
+        )
+        val result = TimeBlockPlanner.plan(date, listOf(todayTask), 2, "", zone)
+
+        assertEquals(1, result.todayTasks.size)
+        assertEquals(1, result.candidates.size)
+        assertEquals(1, result.proposedSlots.size)
+        assertEquals(todayTask.id, result.proposedSlots.single().task.id)
+        assertEquals(at("08:00"), result.proposedSlots.single().startAt)
+        assertEquals(90, result.plannedMinutes)
+        assertEquals(30, result.remainingMinutes)
+    }
+
+    @Test
+    fun todayDateOnlyTaskProposalStillRespectsOtherScheduledBlocks() {
+        val fixed = TaskEntity(
+            id = 42, title = "Rapat", startAt = at("09:00"),
+            scheduledStartAt = at("09:00"), scheduledEndAt = at("10:00"),
+            estimatedMinutes = 60
+        )
+        val flexible = TaskEntity(
+            id = 43, title = "Administrasi", startAt = date.atStartOfDay(zone).toInstant().toEpochMilli(),
+            estimatedMinutes = 60
+        )
+        val result = TimeBlockPlanner.plan(date, listOf(fixed, flexible), 4, "", zone)
+
+        assertEquals(at("08:00"), result.proposedSlots.single().startAt)
+        assertEquals(120, result.plannedMinutes)
+    }
+
 }
