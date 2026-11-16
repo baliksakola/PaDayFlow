@@ -112,7 +112,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                 openedNotesType != null -> NotesScreen(noteDao, openedNotesType!!, Modifier.padding(padding),
                     onBack = { openedNotesType = null })
                 showHabitTracker -> HabitTrackerScreen(habitDao, Modifier.padding(padding), onBack = { showHabitTracker = false })
-                showSmartAssistant -> SmartAssistantScreen(tasks, Modifier.padding(padding),
+                showSmartAssistant -> SmartAssistantScreen(tasks, productiveHours, Modifier.padding(padding),
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
@@ -556,6 +556,7 @@ private fun AnalyticsMetric(label: String, value: String, modifier: Modifier = M
 @Composable
 private fun SmartAssistantScreen(
     tasks: List<TaskEntity>,
+    productiveHours: Int,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onOpenTask: (TaskEntity) -> Unit
@@ -569,7 +570,19 @@ private fun SmartAssistantScreen(
     val dueSoon = active.filter { it.deadlineAt != null && it.deadlineAt >= startToday && it.deadlineAt < endSoon }
     val urgent = active.filter { it.priority == "Mendesak" || it.priority == "Tinggi" }
     val noSchedule = active.filter { it.startAt == null && it.deadlineAt == null }
+    val todayTasks = active.filter { task ->
+        task.startAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() == today } == true
+    }
+    val plannedMinutes = todayTasks.sumOf { it.estimatedMinutes.coerceAtLeast(0) }
+    val capacityMinutes = productiveHours.coerceIn(1, 16) * 60
+    val capacityPercent = (plannedMinutes * 100 / capacityMinutes).coerceAtLeast(0)
     val suggestions = buildList {
+        if (plannedMinutes > capacityMinutes) {
+            add("Beban terjadwal hari ini melebihi kapasitas: estimasi ${plannedMinutes / 60} jam ${plannedMinutes % 60} menit dari batas ${productiveHours} jam. Tinjau prioritas dan pertimbangkan memindahkan sebagian tugas.")
+        } else if (plannedMinutes >= capacityMinutes * 80 / 100) {
+            add("Kapasitas hari ini hampir penuh: estimasi penggunaan ${capacityPercent}% dari ${productiveHours} jam. Sisakan ruang untuk jeda dan pekerjaan tak terduga.")
+        }
+
         overdue.forEach { add("Terlambat: ${it.title}. Tinjau progres dan tentukan jadwal tindak lanjut.") }
         dueSoon.forEach { add("Deadline mendekat: ${it.title}. Sisihkan waktu sebelum ${formatDate(it.deadlineAt!!)}.") }
         urgent.filter { task -> overdue.none { it.id == task.id } && dueSoon.none { it.id == task.id } }
@@ -591,6 +604,27 @@ private fun SmartAssistantScreen(
                 Text("Ringkasan kondisi tugas", fontWeight = FontWeight.SemiBold)
                 Text("${active.size} tugas aktif", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("${overdue.size} terlambat · ${dueSoon.size} deadline 3 hari ke depan · ${urgent.size} prioritas tinggi/mendesak")
+            }
+        }
+        Heading("Kapasitas harian", "Berdasarkan estimasi durasi tugas yang dijadwalkan mulai hari ini.")
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Estimasi beban hari ini", fontWeight = FontWeight.SemiBold)
+                    Text("${productiveHours} jam tersedia", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text("${plannedMinutes / 60} jam ${plannedMinutes % 60} menit",
+                    style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                LinearProgressIndicator(
+                    progress = { (plannedMinutes.toFloat() / capacityMinutes).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = if (plannedMinutes > capacityMinutes) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
+                Text("${capacityPercent}% kapasitas terpakai · ${todayTasks.size} tugas terjadwal",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Perhitungan hanya memakai estimasi durasi pada tugas dengan tanggal mulai hari ini. Tugas tanpa estimasi dihitung 0 menit.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Heading("Rekomendasi", "Saran dibuat dari aturan sederhana, tanpa layanan AI berbayar.")
