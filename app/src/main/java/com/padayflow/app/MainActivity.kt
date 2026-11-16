@@ -66,10 +66,12 @@ class MainActivity : ComponentActivity() {
         val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
         val protectedTimesFlow = settings.data.map { it[PROTECTED_TIME_BLOCKS] ?: DEFAULT_PROTECTED_TIME_BLOCKS }
+        val snoozeMinutesFlow = settings.data.map { it[REMINDER_SNOOZE_MINUTES] ?: 60 }
         setContent {
             val themeMode by themeFlow.collectAsState(initial = "system")
             val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
             val protectedTimes by protectedTimesFlow.collectAsState(initial = DEFAULT_PROTECTED_TIME_BLOCKS)
+            val snoozeMinutes by snoozeMinutesFlow.collectAsState(initial = 60)
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(),
@@ -79,6 +81,8 @@ class MainActivity : ComponentActivity() {
                             lifecycleScope.launch { settings.edit { it[DAILY_PRODUCTIVE_HOURS] = hours } }
                         }, protectedTimes = protectedTimes, onProtectedTimesChange = { value ->
                             lifecycleScope.launch { settings.edit { it[PROTECTED_TIME_BLOCKS] = value } }
+                        }, snoozeMinutes = snoozeMinutes, onSnoozeMinutesChange = { value ->
+                            lifecycleScope.launch { settings.edit { it[REMINDER_SNOOZE_MINUTES] = value } }
                         })
                 }
             }
@@ -87,7 +91,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit) {
     val context = LocalContext.current.applicationContext
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
@@ -137,9 +141,9 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
-                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, Modifier.padding(padding),
+                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, Modifier.padding(padding),
                     onBack = { showSettings = false }, onThemeChange = onThemeChange,
-                    onProductiveHoursChange = onProductiveHoursChange, onProtectedTimesChange = onProtectedTimesChange)
+                    onProductiveHoursChange = onProductiveHoursChange, onProtectedTimesChange = onProtectedTimesChange, onSnoozeMinutesChange = onSnoozeMinutesChange)
                 showBackupRestore -> BackupRestoreScreen(database, Modifier.padding(padding),
                     onBack = { showBackupRestore = false })
                 showDailyPlanning -> DailyPlanningScreen(tasks, productiveHours, protectedTimes, Modifier.padding(padding),
@@ -442,12 +446,13 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
 }
 
 @Composable
-private fun SettingsScreen(themeMode: String, productiveHours: Int, protectedTimes: String, modifier: Modifier = Modifier,
+private fun SettingsScreen(themeMode: String, productiveHours: Int, protectedTimes: String, snoozeMinutes: Int, modifier: Modifier = Modifier,
                            onBack: () -> Unit, onThemeChange: (String) -> Unit,
-                           onProductiveHoursChange: (Int) -> Unit, onProtectedTimesChange: (String) -> Unit) {
+                           onProductiveHoursChange: (Int) -> Unit, onProtectedTimesChange: (String) -> Unit, onSnoozeMinutesChange: (Int) -> Unit) {
     var hoursInput by remember(productiveHours) { mutableStateOf(productiveHours.toString()) }
     var protectedInput by remember(protectedTimes) { mutableStateOf(protectedTimes) }
     var protectedError by remember { mutableStateOf<String?>(null) }
+    var selectedSnooze by remember(snoozeMinutes) { mutableIntStateOf(snoozeMinutes) }
     val options = listOf("system" to "Ikuti sistem", "light" to "Terang", "dark" to "Gelap")
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -491,6 +496,22 @@ private fun SettingsScreen(themeMode: String, productiveHours: Int, protectedTim
                 ) { Text("Simpan kapasitas") }
                 Text("Rentang yang diizinkan: 1–16 jam. Pengaturan ini belum otomatis menjadwalkan ulang tugas.",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Durasi tunda pengingat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Atur berapa lama pengingat ditunda ketika tombol Tunda ditekan pada notifikasi.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                listOf(15, 30, 60, 120).forEach { minutes ->
+                    Row(Modifier.fillMaxWidth().clickable { selectedSnooze = minutes }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selectedSnooze == minutes, onClick = { selectedSnooze = minutes })
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (minutes < 60) minutes.toString() + " menit" else if (minutes == 60) "1 jam" else "2 jam")
+                    }
+                }
+                Button(onClick = { onSnoozeMinutesChange(selectedSnooze) }, enabled = selectedSnooze != snoozeMinutes, modifier = Modifier.fillMaxWidth()) { Text("Simpan durasi tunda") }
             }
         }
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
