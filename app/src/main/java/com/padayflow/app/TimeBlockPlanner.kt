@@ -42,7 +42,12 @@ internal object TimeBlockPlanner {
 
         val active = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
         val todayTasks = active.filter { belongsToDate(it.startAt) || belongsToDate(it.scheduledStartAt) }
-        val candidates = active.filter { it.startAt == null && it.scheduledStartAt == null }
+        // Unfinished tasks whose planned start date has passed are eligible for a new proposal.
+        // Their original date is preserved until the user approves the replacement slot.
+        val candidates = active.filter {
+            it.scheduledStartAt == null &&
+                (it.startAt == null || (it.startAt < startOfDay && !belongsToDate(it.startAt)))
+        }
             .sortedWith(compareBy<TaskEntity>(
                 { when (it.priority) { "Mendesak" -> 0; "Tinggi" -> 1; "Normal" -> 2; else -> 3 } },
                 { it.deadlineAt ?: Long.MAX_VALUE },
