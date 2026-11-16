@@ -131,8 +131,3 @@ internal fun DailyPlanningScreen(
     }
 }
 
-private fun dayStartSafe(date: LocalDate, zone: ZoneId): Long =
-    date.atTime(LocalTime.of(8, 0)).atZone(zone).toInstant().toEpochMilli()
-
-private fun dayEndSafe(date: LocalDate, zone: ZoneId): Long =
-    date.atTime(LocalTime.of(20, 0)).atZone(zone).toInstant().toEpochMilli()
