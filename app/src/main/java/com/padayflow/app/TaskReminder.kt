@@ -74,10 +74,17 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
             runBlocking { applicationContext.dataStore.data.first()[REMINDER_SNOOZE_MINUTES] ?: 60 }
         } catch (_: Exception) { 60 }
         createReminderChannel(applicationContext)
-        val openIntent = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)
-        val contentPending = openIntent?.let {
-            PendingIntent.getActivity(applicationContext, taskId.toInt(), it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val openIntent = Intent(applicationContext, MainActivity::class.java).apply {
+            putExtra("openTaskId", taskId)
         }
+        val contentPending = PendingIntent.getActivity(
+            applicationContext, taskId.toInt(), openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val viewPending = PendingIntent.getActivity(
+            applicationContext, taskId.toInt() + 300000, openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val completeIntent = Intent(applicationContext, ReminderActionReceiver::class.java).apply {
             action = ACTION_COMPLETE
             putExtra("taskId", taskId)
@@ -98,6 +105,7 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(contentPending)
+            .addAction(android.R.drawable.ic_menu_view, "Lihat Tugas", viewPending)
             .addAction(android.R.drawable.checkbox_on_background, "Selesai", completePending)
             .addAction(android.R.drawable.ic_lock_idle_alarm, "Tunda " + if (snoozeMinutes < 60) "$snoozeMinutes menit" else if (snoozeMinutes == 60) "1 jam" else "2 jam", snoozePending)
             .build()
