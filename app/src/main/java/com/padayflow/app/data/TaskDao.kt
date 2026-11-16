@@ -36,6 +36,9 @@ interface TaskDao {
     @Query("UPDATE tasks SET status = :status WHERE id = :taskId")
     suspend fun updateStatus(taskId: Long, status: String)
 
+    @Query("UPDATE tasks SET reminderAt = :reminderAt WHERE id = :taskId")
+    suspend fun updateReminderAt(taskId: Long, reminderAt: Long?)
+
     @Query("DELETE FROM tasks WHERE id = :taskId")
     suspend fun delete(taskId: Long)
 }
