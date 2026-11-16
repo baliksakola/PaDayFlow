@@ -1217,7 +1217,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                     (scheduledStartTime.isNotBlank() || scheduledEndTime.isNotBlank()) && start == null -> validation = "Isi tanggal mulai sebelum mengatur jam pengerjaan."
                     (scheduledStartTime.isBlank() != scheduledEndTime.isBlank()) -> validation = "Jam mulai dan jam selesai harus diisi berpasangan."
                     scheduledStartTime.isNotBlank() && (scheduledStart == null || scheduledEnd == null) -> validation = "Format jam harus HH:mm, contoh 08:30."
-                    scheduledStart != null && scheduledEnd != null && scheduledEnd <= scheduledStart -> validation = "Jam selesai harus setelah jam mulai."
+                    scheduledStart != null && scheduledEnd != null && scheduledEnd!!.compareTo(scheduledStart!!) <= 0 -> validation = "Jam selesai harus setelah jam mulai."
                     recurrenceEnd.isNotBlank() && repeatUntil == null -> validation = "Tanggal akhir pengulangan harus YYYY-MM-DD."
                     recurrenceRule != "NONE" && (repeatEvery == null || repeatEvery !in 1..365) -> validation = "Interval pengulangan harus 1–365."
                     recurrenceRule != "NONE" && start == null -> validation = "Isi tanggal mulai untuk tugas berulang."
@@ -1334,4 +1334,5 @@ private fun Placeholder(title: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(title + " — segera dikembangkan", style = MaterialTheme.typography.titleLarge)
     }
+}
 }
