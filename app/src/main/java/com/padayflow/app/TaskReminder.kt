@@ -63,10 +63,11 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
             return Result.retry()
         }
         if (task == null || task.status == "Selesai" || task.status == "Dibatalkan" ||
-            task.reminderAt != expectedTriggerAt || expectedTriggerAt > System.currentTimeMillis()) {
+            task.reminderAt != expectedTriggerAt) {
             NotificationManagerCompat.from(applicationContext).cancel(taskId.toInt())
             return Result.success()
         }
+        if (expectedTriggerAt > System.currentTimeMillis()) return Result.retry()
         val title = task.title.ifBlank { fallbackTitle }
         val snoozeMinutes = try {
             runBlocking { applicationContext.dataStore.data.first()[REMINDER_SNOOZE_MINUTES] ?: 60 }
