@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import com.padayflow.app.data.TaskEntity
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -35,67 +34,15 @@ internal fun DailyPlanningScreen(
     val today = LocalDate.now()
     val zone = ZoneId.systemDefault()
     val startOfToday = today.atStartOfDay(zone).toInstant().toEpochMilli()
-    val endOfToday = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-    val active = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
-    val todayTasks = active.filter { it.startAt != null && it.startAt >= startOfToday && it.startAt < endOfToday }
-    val plannedMinutes = todayTasks.sumOf { it.estimatedMinutes.coerceAtLeast(0) }
-    val capacityMinutes = productiveHours.coerceIn(1, 16) * 60
-    val remainingMinutes = (capacityMinutes - plannedMinutes).coerceAtLeast(0)
-    val candidates = active.filter { it.startAt == null }
-        .sortedWith(compareBy<TaskEntity>(
-            { when (it.priority) { "Mendesak" -> 0; "Tinggi" -> 1; "Normal" -> 2; else -> 3 } },
-            { it.deadlineAt ?: Long.MAX_VALUE },
-            { it.createdAt }
-        ))
-    val existingSlots = todayTasks.mapNotNull { task ->
-        val start = task.scheduledStartAt
-        val end = task.scheduledEndAt
-        if (start != null && end != null && end > start) start to end else null
-    }.toMutableList()
-    val protectedSlots = buildList {
-        val lines = protectedTimes.lines().filter { it.isNotBlank() }
-        for (offset in -1L..0L) {
-            val date = today.plusDays(offset)
-            for (line in lines) {
-                val parts = line.split("|")
-                val times = parts.firstOrNull()?.split("-") ?: emptyList()
-                if (parts.size != 2 || times.size != 2) continue
-                val startTime = runCatching { LocalTime.parse(times[0]) }.getOrNull() ?: continue
-                val endTime = runCatching { LocalTime.parse(times[1]) }.getOrNull() ?: continue
-                val start = date.atTime(startTime).atZone(zone).toInstant().toEpochMilli()
-                val endDate = if (endTime <= startTime) date.plusDays(1) else date
-                val end = endDate.atTime(endTime).atZone(zone).toInstant().toEpochMilli()
-                if (end > dayStartSafe(today, zone) && start < dayEndSafe(today, zone)) add(start to end)
-            }
-        }
-    }
-    existingSlots += protectedSlots
-    val proposedSlots = mutableListOf<ProposedTaskSlot>()
-    var proposedMinutes = 0
-    val dayStart = today.atTime(LocalTime.of(8, 0)).atZone(zone).toInstant().toEpochMilli()
-    val dayEnd = today.atTime(LocalTime.of(20, 0)).atZone(zone).toInstant().toEpochMilli()
-    var cursor = dayStart
-    for (task in candidates) {
-        val duration = task.estimatedMinutes.coerceAtLeast(0)
-        if (duration <= 0 || proposedMinutes + duration > remainingMinutes) continue
-        val durationMillis = duration * 60_000L
-        var slotStart = cursor
-        while (slotStart + durationMillis <= dayEnd) {
-            val collision = existingSlots.firstOrNull { (start, end) ->
-                slotStart < end && slotStart + durationMillis > start
-            }
-            if (collision == null) break
-            slotStart = collision.second
-        }
-        if (slotStart + durationMillis <= dayEnd) {
-            val slotEnd = slotStart + durationMillis
-            proposedSlots += ProposedTaskSlot(task, slotStart, slotEnd)
-            existingSlots += slotStart to slotEnd
-            cursor = slotEnd
-            proposedMinutes += duration
-        }
-    }
+    val plan = TimeBlockPlanner.plan(today, tasks, productiveHours, protectedTimes, zone)
+    val todayTasks = plan.todayTasks
+    val plannedMinutes = plan.plannedMinutes
+    val capacityMinutes = plan.capacityMinutes
+    val remainingMinutes = plan.remainingMinutes
+    val candidates = plan.candidates
+    val proposedSlots = plan.proposedSlots
     val proposed = proposedSlots.map { it.task }
+    val conflicts = plan.conflicts
     val dateLabel = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID")))
         .replaceFirstChar { it.uppercase(Locale("id", "ID")) }
 
@@ -121,16 +68,25 @@ internal fun DailyPlanningScreen(
                     style = MaterialTheme.typography.bodySmall)
             }
         }
-        val conflicts = todayTasks.filter { first -> first.scheduledStartAt != null && first.scheduledEndAt != null }.filter { first ->
-            todayTasks.any { second -> second.id != first.id && second.scheduledStartAt != null && second.scheduledEndAt != null &&
-                first.scheduledStartAt!! < second.scheduledEndAt!! && first.scheduledEndAt!! > second.scheduledStartAt!! }
-        }.distinctBy { it.id }
         if (conflicts.isNotEmpty()) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Konflik antarjadwal terdeteksi", fontWeight = FontWeight.SemiBold)
+                    conflicts.forEach { conflict ->
+                        Text("${conflict.first.title} bertabrakan dengan ${conflict.second.title}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("Buka salah satu tugas untuk mengubah jamnya.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        if (plan.protectedTimeConflicts.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Konflik jadwal terdeteksi", fontWeight = FontWeight.SemiBold)
-                    conflicts.forEach { Text(it.title, style = MaterialTheme.typography.bodySmall) }
-                    Text("Buka dan ubah jam salah satu tugas agar tidak bertumpuk.", style = MaterialTheme.typography.bodySmall)
+                    Text("Jadwal melewati Protected Time", fontWeight = FontWeight.SemiBold)
+                    plan.protectedTimeConflicts.forEach { task ->
+                        Text(task.title, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("Waktu terlindungi tidak diubah otomatis. Atur ulang tugas secara manual.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
