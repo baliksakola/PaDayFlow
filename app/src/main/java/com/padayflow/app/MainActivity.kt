@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -1034,6 +1035,8 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
     var priority by remember(task?.id) { mutableStateOf(task?.priority ?: "Normal") }
     var status by remember(task?.id) { mutableStateOf(task?.status ?: "Belum dikerjakan") }
     var startDate by remember(task?.id) { mutableStateOf(task?.startAt?.let(::formatDate).orEmpty()) }
+    var scheduledStartTime by remember(task?.id) { mutableStateOf(task?.scheduledStartAt?.let(::formatTime).orEmpty()) }
+    var scheduledEndTime by remember(task?.id) { mutableStateOf(task?.scheduledEndAt?.let(::formatTime).orEmpty()) }
     var deadline by remember(task?.id) { mutableStateOf(task?.deadlineAt?.let(::formatDate).orEmpty()) }
     var estimate by remember(task?.id) { mutableStateOf(if (task == null || task.estimatedMinutes == 0) "" else task.estimatedMinutes.toString()) }
     var reminder by remember(task?.id) { mutableStateOf(task?.reminderAt?.let(::formatDate).orEmpty()) }
@@ -1078,6 +1081,11 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                 OutlinedTextField(startDate, { startDate = it }, label = { Text("Tanggal mulai (YYYY-MM-DD)") },
                     supportingText = { Text("Opsional. Contoh: 2026-11-20") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline (YYYY-MM-DD)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("Waktu pengerjaan (opsional)", style = MaterialTheme.typography.labelLarge)
+                OutlinedTextField(scheduledStartTime, { scheduledStartTime = it }, label = { Text("Jam mulai (HH:mm)") },
+                    supportingText = { Text("Gunakan tanggal mulai di atas. Contoh: 08:00") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(scheduledEndTime, { scheduledEndTime = it }, label = { Text("Jam selesai (HH:mm)") },
+                    supportingText = { Text("Contoh: 09:30") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(estimate, { estimate = it.filter(Char::isDigit) }, label = { Text("Estimasi durasi (menit)") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(reminder, { reminder = it }, label = { Text("Tanggal pengingat (YYYY-MM-DD)") },
@@ -1091,12 +1099,18 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                 val start = parseDate(startDate)
                 val due = parseDate(deadline)
                 val remind = parseDate(reminder)
+                val scheduledStart = parseDateTime(startDate, scheduledStartTime)
+                val scheduledEnd = parseDateTime(startDate, scheduledEndTime)
                 val invalid = listOf(startDate to start, deadline to due, reminder to remind)
                     .firstOrNull { it.first.isNotBlank() && it.second == null }
                 when {
                     title.isBlank() -> validation = "Nama tugas wajib diisi."
                     invalid != null -> validation = "Format tanggal harus YYYY-MM-DD."
                     start != null && due != null && due < start -> validation = "Deadline tidak boleh sebelum tanggal mulai."
+                    (scheduledStartTime.isNotBlank() || scheduledEndTime.isNotBlank()) && start == null -> validation = "Isi tanggal mulai sebelum mengatur jam pengerjaan."
+                    (scheduledStartTime.isBlank() != scheduledEndTime.isBlank()) -> validation = "Jam mulai dan jam selesai harus diisi berpasangan."
+                    scheduledStartTime.isNotBlank() && (scheduledStart == null || scheduledEnd == null) -> validation = "Format jam harus HH:mm, contoh 08:30."
+                    scheduledStart != null && scheduledEnd != null && scheduledEnd <= scheduledStart -> validation = "Jam selesai harus setelah jam mulai."
                     else -> {
                         validation = null
                         onSave(TaskEntity(
@@ -1111,7 +1125,9 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                             estimatedMinutes = estimate.toIntOrNull() ?: 0,
                             reminderAt = remind,
                             notes = notes.trim(),
-                            createdAt = task?.createdAt ?: System.currentTimeMillis()
+                            createdAt = task?.createdAt ?: System.currentTimeMillis(),
+                            scheduledStartAt = scheduledStart,
+                            scheduledEndAt = scheduledEnd
                         ))
                     }
                 }
@@ -1140,6 +1156,18 @@ private fun parseDate(value: String): Long? {
 
 private fun formatDate(value: Long): String =
     Instant.ofEpochMilli(value).atZone(ZoneId.systemDefault()).toLocalDate().format(dateFormatter)
+
+private fun parseDateTime(date: String, time: String): Long? {
+    if (date.isBlank() || time.isBlank()) return null
+    return try {
+        LocalDate.parse(date, dateFormatter).atTime(LocalTime.parse(time))
+            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    } catch (_: Exception) { null }
+}
+
+private fun formatTime(value: Long): String =
+    Instant.ofEpochMilli(value).atZone(ZoneId.systemDefault()).toLocalTime()
+        .format(DateTimeFormatter.ofPattern("HH:mm"))
 
 @Composable
 private fun Heading(title: String, subtitle: String) {
