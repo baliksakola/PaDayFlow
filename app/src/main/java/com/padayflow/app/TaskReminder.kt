@@ -16,6 +16,10 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.padayflow.app.data.PaDayFlowDatabase
+import com.padayflow.app.data.TaskEntity
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -103,7 +107,18 @@ class ReminderActionReceiver : BroadcastReceiver() {
                 val pending = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
-                        PaDayFlowDatabase.getInstance(context).taskDao().updateStatus(taskId, "Selesai")
+                        val dao = PaDayFlowDatabase.getInstance(context).taskDao()
+                        val task = dao.getTaskById(taskId)
+                        if (task != null && task.status != "Selesai") {
+                            dao.updateStatus(taskId, "Selesai")
+                            val nextTask = createNextRecurringTask(task)
+                            if (nextTask != null) {
+                                val newId = dao.insert(nextTask)
+                                nextTask.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let {
+                                    ReminderScheduler.schedule(context, newId, nextTask.title, it)
+                                }
+                            }
+                        }
                         NotificationManagerCompat.from(context).cancel(taskId.toInt())
                         ReminderScheduler.cancel(context, taskId)
                     } finally {
@@ -118,4 +133,26 @@ class ReminderActionReceiver : BroadcastReceiver() {
             }
         }
     }
+}
+
+private fun createNextRecurringTask(task: TaskEntity): TaskEntity? {
+    if (task.recurrenceRule == "NONE") return null
+    val zone = ZoneId.systemDefault()
+    val baseDate = task.startAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: LocalDate.now()
+    val interval = task.recurrenceInterval.coerceIn(1, 365)
+    val nextDate = when (task.recurrenceRule) {
+        "DAILY" -> baseDate.plusDays(interval.toLong())
+        "WEEKLY" -> baseDate.plusWeeks(interval.toLong())
+        "MONTHLY" -> baseDate.plusMonths(interval.toLong())
+        else -> return null
+    }
+    val nextStart = nextDate.atStartOfDay(zone).toInstant().toEpochMilli()
+    if (task.recurrenceEndAt != null && nextStart > task.recurrenceEndAt) return null
+    val oldDeadline = task.deadlineAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+    val deadline = oldDeadline?.let { nextDate.plusDays(java.time.temporal.ChronoUnit.DAYS.between(baseDate, it)) }
+    fun shift(value: Long?): Long? = value?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime().let { time -> nextDate.atTime(time).atZone(zone).toInstant().toEpochMilli() } }
+    return task.copy(id = 0, status = "Belum dikerjakan", startAt = nextStart,
+        deadlineAt = deadline?.atStartOfDay(zone)?.toInstant()?.toEpochMilli(),
+        scheduledStartAt = shift(task.scheduledStartAt), scheduledEndAt = shift(task.scheduledEndAt),
+        reminderAt = shift(task.reminderAt), createdAt = System.currentTimeMillis())
 }
