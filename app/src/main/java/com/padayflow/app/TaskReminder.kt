@@ -56,7 +56,7 @@ internal object ReminderScheduler {
                 cancel(context, task.id)
                 NotificationManagerCompat.from(context).cancel(task.id.toInt())
             } else {
-                schedule(context, task.id, task.title, trigger)
+                trigger?.let { schedule(context, task.id, task.title, it) }
             }
         }
     }
