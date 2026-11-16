@@ -1239,8 +1239,68 @@ private fun CalendarScreen(
                 }
                 TextButton(onClick = { month = today.withDayOfMonth(1); selectedDate = today }) { Text("Hari ini") }
             }
-            if (selectedTasks.isEmpty()) EmptyState("Tidak ada agenda", "Tidak ada jadwal, tanggal mulai, atau deadline pada tanggal ini.")
-            else selectedTasks.forEach { task -> TaskCard(task, onClick = { onEdit(task) }) }
+            val timedTasks = selectedTasks.filter { it.scheduledStartAt != null && it.scheduledEndAt != null }
+                .sortedBy { it.scheduledStartAt }
+            val untimedTasks = selectedTasks.filter { it !in timedTasks }
+            if (selectedTasks.isEmpty()) {
+                EmptyState("Tidak ada agenda", "Tidak ada jadwal, tanggal mulai, atau deadline pada tanggal ini.")
+            } else {
+                if (timedTasks.isNotEmpty()) {
+                    Text("Jadwal berdasarkan waktu", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    timedTasks.forEach { task ->
+                        val start = Instant.ofEpochMilli(task.scheduledStartAt!!).atZone(zone)
+                        val end = Instant.ofEpochMilli(task.scheduledEndAt!!).atZone(zone)
+                        val duration = ((task.scheduledEndAt!! - task.scheduledStartAt!!) / 60_000L).coerceAtLeast(0)
+                        Card(
+                            Modifier.fillMaxWidth().clickable { onEdit(task) },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(start.format(DateTimeFormatter.ofPattern("HH:mm")), color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                    Box(Modifier.width(2.dp).height(24.dp), contentAlignment = Alignment.Center) {
+                                        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.outlineVariant) {}
+                                    }
+                                    Text(end.format(DateTimeFormatter.ofPattern("HH:mm")), style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(task.title, fontWeight = FontWeight.SemiBold)
+                                    Text("${task.category} · ${duration} menit", style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        AssistChip(onClick = { onEdit(task) }, label = { Text(task.priority) })
+                                        AssistChip(onClick = { onEdit(task) }, label = { Text(task.status) })
+                                    }
+                                }
+                                Icon(Icons.Outlined.ChevronRight, contentDescription = "Buka tugas",
+                                    modifier = Modifier.align(Alignment.CenterVertically))
+                            }
+                        }
+                    }
+                }
+                if (untimedTasks.isNotEmpty()) {
+                    Text("Belum memiliki jam khusus", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    untimedTasks.forEach { task ->
+                        Card(Modifier.fillMaxWidth().clickable { onEdit(task) },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(task.title, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    buildList {
+                                        task.startAt?.let { add("Mulai: " + Instant.ofEpochMilli(it).atZone(zone).format(DateTimeFormatter.ofPattern("d MMM"))) }
+                                        task.deadlineAt?.let { add("Deadline: " + Instant.ofEpochMilli(it).atZone(zone).format(DateTimeFormatter.ofPattern("d MMM"))) }
+                                        add(task.status)
+                                    }.joinToString(" · "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(72.dp))
     }
