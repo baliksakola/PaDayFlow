@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(),
+                        initialTaskId = intent.getLongExtra("openTaskId", -1L),
                         themeMode = themeMode, onThemeChange = { selected ->
                             lifecycleScope.launch { settings.edit { it[THEME_MODE] = selected } }
                         }, productiveHours = productiveHours, onProductiveHoursChange = { hours ->
@@ -91,7 +92,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit) {
     val context = LocalContext.current.applicationContext
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
@@ -108,6 +109,15 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
     val habits by habitDao.observeHabits().collectAsState(initial = emptyList())
     val habitLogs by habitDao.observeLogs().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(initialTaskId, tasks) {
+        if (initialTaskId > 0L) {
+            tasks.firstOrNull { it.id == initialTaskId }?.let {
+                editing = it
+                tab = 2
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
