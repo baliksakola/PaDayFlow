@@ -24,12 +24,15 @@ import com.padayflow.app.ui.theme.PaDayFlowTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val tabs = listOf("Beranda", "My Day", "Tugas", "Kalender", "Lainnya")
 private val tabIcons = listOf(Icons.Outlined.Home, Icons.Outlined.Today, Icons.Outlined.TaskAlt, Icons.Outlined.CalendarMonth, Icons.Outlined.MoreHoriz)
+private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,9 +45,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun PaDayFlowApp(dao: TaskDao) {
     var tab by remember { mutableIntStateOf(0) }
+    var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<TaskEntity?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -54,31 +60,56 @@ private fun PaDayFlowApp(dao: TaskDao) {
                 }
             }
         },
-        floatingActionButton = { FloatingActionButton(onClick = { adding = true }) {
-            Icon(Icons.Outlined.Add, contentDescription = "Tambah tugas")
-        } }
+        floatingActionButton = {
+            FloatingActionButton(onClick = { adding = true }) {
+                Icon(Icons.Outlined.Add, contentDescription = "Tambah tugas")
+            }
+        }
     ) { padding ->
         when (tab) {
-            0 -> Dashboard(tasks, Modifier.padding(padding))
-            1, 2 -> TaskList(tasks, Modifier.padding(padding), onComplete = { task ->
-                scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } }
-            })
+            0 -> Dashboard(tasks, Modifier.padding(padding), onOpenTask = { editing = it })
+            1, 2 -> TaskList(tasks, Modifier.padding(padding),
+                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } } },
+                onEdit = { editing = it }, onDelete = { deleting = it })
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
     }
-    if (adding) AddTaskDialog(onDismiss = { adding = false }, onSave = { title, category, priority ->
+
+    if (adding) TaskEditorDialog(task = null, onDismiss = { adding = false }, onSave = { task ->
         scope.launch {
-            withContext(Dispatchers.IO) { dao.insert(TaskEntity(title = title, category = category, priority = priority)) }
+            withContext(Dispatchers.IO) { dao.insert(task) }
             adding = false
             tab = 2
         }
     })
+    editing?.let { task ->
+        TaskEditorDialog(task = task, onDismiss = { editing = null }, onSave = { updated ->
+            scope.launch {
+                withContext(Dispatchers.IO) { dao.update(updated) }
+                editing = null
+            }
+        })
+    }
+    deleting?.let { task ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Hapus tugas?") },
+            text = { Text("Tugas \"" + task.title + "\" akan dihapus permanen dari perangkat.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch { withContext(Dispatchers.IO) { dao.delete(task.id) }; deleting = null }
+                }) { Text("Hapus", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Batal") } }
+        )
+    }
 }
 
 @Composable
-private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier) {
+private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, onOpenTask: (TaskEntity) -> Unit) {
     val date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID")))
     val done = tasks.count { it.status == "Selesai" }
+    val open = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("PaDayFlow", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text(date.replaceFirstChar { it.uppercase(Locale("id", "ID")) }, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -88,50 +119,166 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Ringkasan tugas", fontWeight = FontWeight.SemiBold)
-                Text(done.toString() + " selesai · " + (tasks.size - done).toString() + " belum selesai",
+                Text(done.toString() + " selesai · " + open.size.toString() + " belum selesai",
                     style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(tasks.size.toString() + " tugas tersimpan di perangkat")
             }
         }
-        Heading("Agenda hari ini", "Tugas terbaru")
+        Heading("Agenda dan tugas terbaru", "Pilih tugas untuk melihat atau mengubah detail")
         if (tasks.isEmpty()) EmptyState("Belum ada agenda", "Tekan tombol + untuk menambahkan tugas pertama.")
-        else tasks.take(3).forEach { TaskCard(it) {} }
+        else tasks.take(4).forEach { TaskCard(it, onClick = { onOpenTask(it) }) }
         Heading("Prioritas utama", "Tugas tinggi dan mendesak")
-        val priorities = tasks.filter { it.priority == "Tinggi" || it.priority == "Mendesak" }.take(3)
+        val priorities = open.filter { it.priority == "Tinggi" || it.priority == "Mendesak" }.take(3)
         if (priorities.isEmpty()) EmptyState("Belum ada prioritas tinggi", "Tandai tugas penting dengan prioritas Tinggi atau Mendesak.")
-        else priorities.forEach { TaskCard(it) {} }
+        else priorities.forEach { TaskCard(it, onClick = { onOpenTask(it) }) }
         Spacer(Modifier.height(70.dp))
     }
 }
 
 @Composable
-private fun TaskList(tasks: List<TaskEntity>, modifier: Modifier = Modifier, onComplete: (TaskEntity) -> Unit) {
+private fun TaskList(
+    tasks: List<TaskEntity>,
+    modifier: Modifier = Modifier,
+    onComplete: (TaskEntity) -> Unit,
+    onEdit: (TaskEntity) -> Unit,
+    onDelete: (TaskEntity) -> Unit
+) {
     Column(modifier.fillMaxSize().padding(20.dp)) {
         Text("Semua tugas", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(tasks.size.toString() + " tugas tersimpan", modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (tasks.isEmpty()) EmptyState("Belum ada tugas", "Tekan tombol + untuk membuat tugas.")
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(tasks, key = { it.id }) { task -> TaskCard(task) { onComplete(task) } }
+            items(tasks, key = { it.id }) { task ->
+                TaskCard(task, onClick = { onEdit(task) }, onComplete = { onComplete(task) }, onDelete = { onDelete(task) })
+            }
         }
     }
 }
 
 @Composable
-private fun TaskCard(task: TaskEntity, onComplete: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+private fun TaskCard(
+    task: TaskEntity,
+    onClick: () -> Unit,
+    onComplete: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
+) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(task.title, fontWeight = FontWeight.SemiBold)
-                Text(task.category + " · " + task.priority, style = MaterialTheme.typography.bodySmall,
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(task.title, fontWeight = FontWeight.SemiBold)
+            Text(task.category + " · " + task.priority, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(task.status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            task.deadlineAt?.let {
+                Text("Deadline: " + formatDate(it), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(task.status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
-            if (task.status != "Selesai") TextButton(onClick = onComplete) { Text("Selesai") }
+            if (onComplete != null || onDelete != null) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    if (task.status != "Selesai" && onComplete != null) TextButton(onClick = onComplete) { Text("Selesai") }
+                    if (onDelete != null) TextButton(onClick = onDelete) { Text("Hapus", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = onClick) { Text("Edit") }
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (TaskEntity) -> Unit) {
+    var title by remember(task?.id) { mutableStateOf(task?.title.orEmpty()) }
+    var description by remember(task?.id) { mutableStateOf(task?.description.orEmpty()) }
+    var category by remember(task?.id) { mutableStateOf(task?.category ?: "Pribadi") }
+    var priority by remember(task?.id) { mutableStateOf(task?.priority ?: "Normal") }
+    var startDate by remember(task?.id) { mutableStateOf(task?.startAt?.let(::formatDate).orEmpty()) }
+    var deadline by remember(task?.id) { mutableStateOf(task?.deadlineAt?.let(::formatDate).orEmpty()) }
+    var estimate by remember(task?.id) { mutableStateOf(if (task == null || task.estimatedMinutes == 0) "" else task.estimatedMinutes.toString()) }
+    var reminder by remember(task?.id) { mutableStateOf(task?.reminderAt?.let(::formatDate).orEmpty()) }
+    var notes by remember(task?.id) { mutableStateOf(task?.notes.orEmpty()) }
+    var categoryMenu by remember { mutableStateOf(false) }
+    var priorityMenu by remember { mutableStateOf(false) }
+    var validation by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (task == null) "Tambah tugas" else "Edit tugas") },
+        text = {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("Nama tugas *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(description, { description = it }, label = { Text("Deskripsi") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                Box {
+                    TextButton(onClick = { categoryMenu = true }) { Text("Kategori: " + category + " ▾") }
+                    DropdownMenu(categoryMenu, { categoryMenu = false }) {
+                        listOf("Sekolah – Sarpras", "Sekolah – Administrasi", "Pekerjaan Sampingan", "Pribadi", "Keluarga").forEach {
+                            DropdownMenuItem(text = { Text(it) }, onClick = { category = it; categoryMenu = false })
+                        }
+                    }
+                }
+                Box {
+                    TextButton(onClick = { priorityMenu = true }) { Text("Prioritas: " + priority + " ▾") }
+                    DropdownMenu(priorityMenu, { priorityMenu = false }) {
+                        listOf("Rendah", "Normal", "Tinggi", "Mendesak").forEach {
+                            DropdownMenuItem(text = { Text(it) }, onClick = { priority = it; priorityMenu = false })
+                        }
+                    }
+                }
+                OutlinedTextField(startDate, { startDate = it }, label = { Text("Tanggal mulai (YYYY-MM-DD)") },
+                    supportingText = { Text("Opsional. Contoh: 2026-11-20") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline (YYYY-MM-DD)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(estimate, { estimate = it.filter(Char::isDigit) }, label = { Text("Estimasi durasi (menit)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(reminder, { reminder = it }, label = { Text("Tanggal pengingat (YYYY-MM-DD)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(notes, { notes = it }, label = { Text("Catatan") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                validation?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val start = parseDate(startDate)
+                val due = parseDate(deadline)
+                val remind = parseDate(reminder)
+                val invalid = listOf(startDate to start, deadline to due, reminder to remind)
+                    .firstOrNull { it.first.isNotBlank() && it.second == null }
+                when {
+                    title.isBlank() -> validation = "Nama tugas wajib diisi."
+                    invalid != null -> validation = "Format tanggal harus YYYY-MM-DD."
+                    start != null && due != null && due < start -> validation = "Deadline tidak boleh sebelum tanggal mulai."
+                    else -> {
+                        validation = null
+                        onSave(TaskEntity(
+                            id = task?.id ?: 0,
+                            title = title.trim(),
+                            category = category,
+                            description = description.trim(),
+                            priority = priority,
+                            status = task?.status ?: "Belum dikerjakan",
+                            startAt = start,
+                            deadlineAt = due,
+                            estimatedMinutes = estimate.toIntOrNull() ?: 0,
+                            reminderAt = remind,
+                            notes = notes.trim(),
+                            createdAt = task?.createdAt ?: System.currentTimeMillis()
+                        ))
+                    }
+                }
+            }, enabled = title.isNotBlank()) { Text("Simpan") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
+}
+
+private fun parseDate(value: String): Long? {
+    if (value.isBlank()) return null
+    return try {
+        LocalDate.parse(value, dateFormatter).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    } catch (_: Exception) { null }
+}
+
+private fun formatDate(value: Long): String =
+    Instant.ofEpochMilli(value).atZone(ZoneId.systemDefault()).toLocalDate().format(dateFormatter)
 
 @Composable
 private fun Heading(title: String, subtitle: String) {
@@ -157,40 +304,4 @@ private fun Placeholder(title: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(title + " — segera dikembangkan", style = MaterialTheme.typography.titleLarge)
     }
-}
-
-@Composable
-private fun AddTaskDialog(onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Pribadi") }
-    var priority by remember { mutableStateOf("Normal") }
-    var categoryMenu by remember { mutableStateOf(false) }
-    var priorityMenu by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Tambah tugas") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(title, { title = it }, label = { Text("Nama tugas") }, singleLine = true)
-                Box {
-                    TextButton(onClick = { categoryMenu = true }) { Text("Kategori: " + category + " ▾") }
-                    DropdownMenu(categoryMenu, { categoryMenu = false }) {
-                        listOf("Sekolah – Sarpras", "Sekolah – Administrasi", "Pekerjaan Sampingan", "Pribadi", "Keluarga").forEach {
-                            DropdownMenuItem(text = { Text(it) }, onClick = { category = it; categoryMenu = false })
-                        }
-                    }
-                }
-                Box {
-                    TextButton(onClick = { priorityMenu = true }) { Text("Prioritas: " + priority + " ▾") }
-                    DropdownMenu(priorityMenu, { priorityMenu = false }) {
-                        listOf("Rendah", "Normal", "Tinggi", "Mendesak").forEach {
-                            DropdownMenuItem(text = { Text(it) }, onClick = { priority = it; priorityMenu = false })
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = { Button(onClick = { onSave(title.trim(), category, priority) }, enabled = title.isNotBlank()) { Text("Simpan") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
-    )
 }
