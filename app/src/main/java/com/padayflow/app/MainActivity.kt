@@ -524,6 +524,42 @@ private fun SettingsScreen(
             Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
 
+        val notificationContext = LocalContext.current
+        var notificationPermissionRefresh by remember { mutableIntStateOf(0) }
+        val notificationPermissionGranted = Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(notificationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Izin notifikasi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (notificationPermissionGranted)
+                        "Izin notifikasi aktif. Pengingat tugas dapat ditampilkan sesuai pengaturan Android."
+                    else
+                        "Izin notifikasi belum diberikan. Pengingat terjadwal tetap tersimpan, tetapi Android dapat memblokir tampilannya.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (!notificationPermissionGranted && Build.VERSION.SDK_INT >= 33) {
+                    Button(
+                        onClick = {
+                            (notificationContext as? android.app.Activity)?.let {
+                                ActivityCompat.requestPermissions(
+                                    it,
+                                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                    7101
+                                )
+                                notificationPermissionRefresh++
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Izinkan notifikasi") }
+                }
+            }
+        }
+
         Card(
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
