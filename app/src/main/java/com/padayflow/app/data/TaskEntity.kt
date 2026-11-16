@@ -16,5 +16,7 @@ data class TaskEntity(
     val estimatedMinutes: Int = 0,
     val reminderAt: Long? = null,
     val notes: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val scheduledStartAt: Long? = null,
+    val scheduledEndAt: Long? = null
 )
