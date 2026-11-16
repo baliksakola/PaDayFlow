@@ -107,68 +107,69 @@ internal fun DailyPlanningScreen(
                 }
             }
         }
-        Text("Timeline hari ini", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        val timelineTasks = todayTasks.filter { it.scheduledStartAt != null && it.scheduledEndAt != null }
-            .sortedBy { it.scheduledStartAt }
-        if (timelineTasks.isEmpty()) {
-            Text("Belum ada time block yang disetujui untuk hari ini.", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall)
+        Text("Timeline terpadu", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Semua aktivitas hari ini diurutkan berdasarkan waktu. Usulan belum menjadi jadwal sampai disetujui.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        data class TimelineRow(
+            val startAt: Long,
+            val endAt: Long,
+            val title: String,
+            val detail: String,
+            val kind: Int,
+            val task: TaskEntity? = null
+        )
+        val timelineRows = buildList {
+            todayTasks.filter { it.scheduledStartAt != null && it.scheduledEndAt != null }.forEach { task ->
+                add(TimelineRow(task.scheduledStartAt!!, task.scheduledEndAt!!, task.title,
+                    "${task.category} · ${task.status}", 0, task))
+            }
+            plan.protectedSlots.forEach { block ->
+                add(TimelineRow(block.startAt, block.endAt, block.label, "Waktu pribadi yang dilindungi", 1))
+            }
+            plan.freeSlots.filter { it.endAt - it.startAt >= 15 * 60_000L }.forEach { gap ->
+                val minutes = ((gap.endAt - gap.startAt) / 60_000L).toInt()
+                add(TimelineRow(gap.startAt, gap.endAt, "Waktu kosong",
+                    "${minutes / 60} jam ${minutes % 60} menit tersedia", 2))
+            }
+            proposedSlots.forEach { slot ->
+                add(TimelineRow(slot.startAt, slot.endAt, slot.task.title,
+                    "Usulan · ${slot.rationale} · ${slot.deadlineNote}", 3, slot.task))
+            }
+        }.sortedWith(compareBy<TimelineRow> { it.startAt }.thenBy { it.kind }.thenBy { it.endAt })
+        if (timelineRows.isEmpty()) {
+            Text("Belum ada jadwal, Protected Time, atau usulan untuk ditampilkan.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         } else {
-            timelineTasks.forEach { task ->
-                val startLabel = Instant.ofEpochMilli(task.scheduledStartAt!!).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))
-                val endLabel = Instant.ofEpochMilli(task.scheduledEndAt!!).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))
-                Card(Modifier.fillMaxWidth().clickable { onOpenTask(task) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            timelineRows.forEach { row ->
+                val startLabel = Instant.ofEpochMilli(row.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))
+                val endLabel = Instant.ofEpochMilli(row.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))
+                val containerColor = when (row.kind) {
+                    1 -> MaterialTheme.colorScheme.tertiaryContainer
+                    2 -> MaterialTheme.colorScheme.secondaryContainer
+                    3 -> MaterialTheme.colorScheme.primaryContainer
+                    else -> MaterialTheme.colorScheme.surfaceContainer
+                }
+                Card(
+                    Modifier.fillMaxWidth().then(if (row.task != null) Modifier.clickable { onOpenTask(row.task) } else Modifier),
+                    colors = CardDefaults.cardColors(containerColor = containerColor)
+                ) {
                     Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Column {
                             Text(startLabel, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                            Text(endLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Text(task.title, fontWeight = FontWeight.SemiBold)
-                            Text("${task.category} · ${task.status}", style = MaterialTheme.typography.bodySmall,
+                            Text(endLabel, style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(row.title, fontWeight = FontWeight.SemiBold)
+                            Text(row.detail, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (row.kind == 3) {
+                                Text("Belum disimpan · perlu persetujuan", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                     }
-                }
-            }
-        }
-        Text("Protected Time & jeda kosong", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        if (plan.protectedSlots.isEmpty()) {
-            Text("Tidak ada Protected Time yang terdeteksi pada rentang jam kerja.", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            plan.protectedSlots.forEach { block ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.small) {
-                        Text(
-                            "${Instant.ofEpochMilli(block.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(block.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}",
-                            Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium
-                        )
-                    }
-                    Text(block.label, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-        val usefulGaps = plan.freeSlots.filter { it.endAt - it.startAt >= 15 * 60_000L }
-        Text("Waktu kosong", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        if (usefulGaps.isEmpty()) {
-            Text("Tidak ada jeda kosong minimal 15 menit dalam rentang kerja.", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            usefulGaps.forEach { gap ->
-                val minutes = ((gap.endAt - gap.startAt) / 60_000L).toInt()
-                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
-                        Text(
-                            "${Instant.ofEpochMilli(gap.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(gap.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}",
-                            Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium
-                        )
-                    }
-                    Text("${minutes / 60}j ${minutes % 60}m tersedia", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
