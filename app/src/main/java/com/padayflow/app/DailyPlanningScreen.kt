@@ -120,7 +120,44 @@ internal fun DailyPlanningScreen(
                 }
             }
         }
-        Text("Waktu terlindungi: " + protectedTimes.lines().count { it.isNotBlank() } + " blok", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text("Protected Time & jeda kosong", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        if (plan.protectedSlots.isEmpty()) {
+            Text("Tidak ada Protected Time yang terdeteksi pada rentang jam kerja.", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            plan.protectedSlots.forEach { block ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.small) {
+                        Text(
+                            "${Instant.ofEpochMilli(block.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(block.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                            Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                    Text(block.label, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        val usefulGaps = plan.freeSlots.filter { it.endAt - it.startAt >= 15 * 60_000L }
+        Text("Waktu kosong", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        if (usefulGaps.isEmpty()) {
+            Text("Tidak ada jeda kosong minimal 15 menit dalam rentang kerja.", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            usefulGaps.forEach { gap ->
+                val minutes = ((gap.endAt - gap.startAt) / 60_000L).toInt()
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
+                        Text(
+                            "${Instant.ofEpochMilli(gap.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(gap.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                            Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                    Text("${minutes / 60}j ${minutes % 60}m tersedia", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         Text("Usulan penjadwalan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Tugas tanpa jadwal dan tugas tertunda yang belum selesai diurutkan berdasarkan prioritas dan deadline. Jadwal lama hanya diganti setelah disetujui.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
