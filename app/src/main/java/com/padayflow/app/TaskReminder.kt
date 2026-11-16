@@ -137,18 +137,18 @@ class ReminderActionReceiver : BroadcastReceiver() {
                         val completion = database.withTransaction {
                             val currentTask = dao.getTaskById(taskId)
                             if (currentTask == null || dao.completeIfActive(taskId) != 1) {
-                                false to null
+                                Triple(false, null, null)
                             } else {
                                 val nextTask = RecurringTaskFactory.next(currentTask)
-                                if (nextTask != null) dao.insert(nextTask)
-                                true to nextTask
+                                val nextId = nextTask?.let { dao.insert(it) }
+                                Triple(true, nextTask, nextId)
                             }
                         }
-                        completion.second?.let { nextTask ->
+                        val nextTask = completion.second
+                        val nextId = completion.third
+                        if (nextTask != null && nextId != null) {
                             nextTask.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let {
-                                val nextId = dao.getTasksWithPendingReminders(System.currentTimeMillis())
-                                    .firstOrNull { pendingTask -> pendingTask.title == nextTask.title && pendingTask.createdAt == nextTask.createdAt }?.id
-                                if (nextId != null) ReminderScheduler.schedule(context, nextId, nextTask.title, it)
+                                ReminderScheduler.schedule(context, nextId, nextTask.title, it)
                             }
                         }
                         NotificationManagerCompat.from(context).cancel(taskId.toInt())
