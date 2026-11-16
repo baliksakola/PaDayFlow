@@ -122,7 +122,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                 onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao, context) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             2 -> TaskList(tasks, Modifier.padding(padding), title = "Semua tugas",
-                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao) } } },
+                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, dao, context) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             3 -> CalendarScreen(tasks, Modifier.padding(padding), onEdit = { editing = it })
             4 -> when {
