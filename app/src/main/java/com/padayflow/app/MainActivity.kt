@@ -654,55 +654,6 @@ private fun SettingsScreen(
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Protected Time", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Waktu yang tidak boleh diisi oleh usulan Daily Planning. Satu baris per blok dengan format HH:mm-HH:mm|Nama. Blok melewati tengah malam didukung.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = protectedInput,
-                    onValueChange = { protectedInput = it; protectedError = null },
-                    label = { Text("Daftar waktu terlindungi") },
-                    placeholder = { Text("12:00-13:00|Makan\n18:00-19:00|Keluarga\n22:00-06:00|Tidur") },
-                    minLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                protectedError?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-                Button(
-                    onClick = {
-                        val lines = protectedInput.lines().filter { it.isNotBlank() }
-                        val valid = lines.all { line ->
-                            val parts = line.split("|")
-                            val times = parts.firstOrNull()?.split("-") ?: emptyList()
-                            parts.size == 2 && parts[1].isNotBlank() && times.size == 2 &&
-                                runCatching { LocalTime.parse(times[0]); LocalTime.parse(times[1]) }.isSuccess &&
-                                times[0] != times[1]
-                        }
-                        if (valid) {
-                            onProtectedTimesChange(protectedInput.trim())
-                            protectedError = null
-                        } else {
-                            protectedError = "Format tidak valid. Contoh: 12:00-13:00|Makan"
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Simpan Protected Time") }
-                Text(
-                    "Contoh default: makan, waktu keluarga, dan tidur. Hapus baris jika tidak ingin memblokir waktu tersebut.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Card(
-            Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-        ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Protected Time", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Atur waktu yang dilindungi agar tidak dipakai oleh usulan Daily Planning. Blok yang melewati tengah malam tetap didukung.",
