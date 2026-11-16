@@ -68,11 +68,15 @@ class MainActivity : ComponentActivity() {
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
         val protectedTimesFlow = settings.data.map { it[PROTECTED_TIME_BLOCKS] ?: DEFAULT_PROTECTED_TIME_BLOCKS }
         val snoozeMinutesFlow = settings.data.map { it[REMINDER_SNOOZE_MINUTES] ?: 60 }
+        val workdayStartFlow = settings.data.map { it[WORKDAY_START] ?: DEFAULT_WORKDAY_START }
+        val workdayEndFlow = settings.data.map { it[WORKDAY_END] ?: DEFAULT_WORKDAY_END }
         setContent {
             val themeMode by themeFlow.collectAsState(initial = "system")
             val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
             val protectedTimes by protectedTimesFlow.collectAsState(initial = DEFAULT_PROTECTED_TIME_BLOCKS)
             val snoozeMinutes by snoozeMinutesFlow.collectAsState(initial = 60)
+            val workdayStart by workdayStartFlow.collectAsState(initial = DEFAULT_WORKDAY_START)
+            val workdayEnd by workdayEndFlow.collectAsState(initial = DEFAULT_WORKDAY_END)
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(),
@@ -85,6 +89,9 @@ class MainActivity : ComponentActivity() {
                             lifecycleScope.launch { settings.edit { it[PROTECTED_TIME_BLOCKS] = value } }
                         }, snoozeMinutes = snoozeMinutes, onSnoozeMinutesChange = { value ->
                             lifecycleScope.launch { settings.edit { it[REMINDER_SNOOZE_MINUTES] = value } }
+                        }, workdayStart = workdayStart, workdayEnd = workdayEnd,
+                        onWorkdayChange = { start, end ->
+                            lifecycleScope.launch { settings.edit { it[WORKDAY_START] = start; it[WORKDAY_END] = end } }
                         })
                 }
             }
@@ -93,7 +100,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
     val context = LocalContext.current.applicationContext
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
@@ -154,12 +161,13 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
-                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, Modifier.padding(padding),
+                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, workdayStart, workdayEnd, Modifier.padding(padding),
                     onBack = { showSettings = false }, onThemeChange = onThemeChange,
-                    onProductiveHoursChange = onProductiveHoursChange, onProtectedTimesChange = onProtectedTimesChange, onSnoozeMinutesChange = onSnoozeMinutesChange)
+                    onProductiveHoursChange = onProductiveHoursChange, onProtectedTimesChange = onProtectedTimesChange,
+                    onSnoozeMinutesChange = onSnoozeMinutesChange, onWorkdayChange = onWorkdayChange)
                 showBackupRestore -> BackupRestoreScreen(database, Modifier.padding(padding),
                     onBack = { showBackupRestore = false })
-                showDailyPlanning -> DailyPlanningScreen(tasks, productiveHours, protectedTimes, Modifier.padding(padding),
+                showDailyPlanning -> DailyPlanningScreen(tasks, productiveHours, protectedTimes, workdayStart, workdayEnd, Modifier.padding(padding),
                     onBack = { showDailyPlanning = false }, onOpenTask = { editing = it },
                     onApproveSchedule = { task ->
                         scope.launch {
@@ -464,13 +472,19 @@ private fun SettingsScreen(
     productiveHours: Int,
     protectedTimes: String,
     snoozeMinutes: Int,
+    workdayStart: String,
+    workdayEnd: String,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onThemeChange: (String) -> Unit,
     onProductiveHoursChange: (Int) -> Unit,
     onProtectedTimesChange: (String) -> Unit,
-    onSnoozeMinutesChange: (Int) -> Unit
+    onSnoozeMinutesChange: (Int) -> Unit,
+    onWorkdayChange: (String, String) -> Unit
 ) {
+    var workdayStartInput by remember(workdayStart) { mutableStateOf(workdayStart) }
+    var workdayEndInput by remember(workdayEnd) { mutableStateOf(workdayEnd) }
+    var workdayError by remember { mutableStateOf<String?>(null) }
     var hoursInput by remember(productiveHours) { mutableStateOf(productiveHours.toString()) }
     var protectedInput by remember(protectedTimes) { mutableStateOf(protectedTimes) }
     var protectedError by remember { mutableStateOf<String?>(null) }
@@ -542,6 +556,41 @@ private fun SettingsScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Rentang jam kerja", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Daily Planning hanya akan menempatkan usulan tugas di dalam rentang ini. Protected Time dan jadwal yang sudah ada tetap dihindari.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(value = workdayStartInput, onValueChange = { workdayStartInput = it; workdayError = null },
+                        label = { Text("Mulai") }, placeholder = { Text("08:00") }, singleLine = true,
+                        modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = workdayEndInput, onValueChange = { workdayEndInput = it; workdayError = null },
+                        label = { Text("Selesai") }, placeholder = { Text("20:00") }, singleLine = true,
+                        modifier = Modifier.weight(1f))
+                }
+                workdayError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                val parsedStart = runCatching { LocalTime.parse(workdayStartInput) }.getOrNull()
+                val parsedEnd = runCatching { LocalTime.parse(workdayEndInput) }.getOrNull()
+                Button(
+                    enabled = parsedStart != null && parsedEnd != null && parsedStart < parsedEnd &&
+                        (workdayStartInput != workdayStart || workdayEndInput != workdayEnd),
+                    onClick = {
+                        if (parsedStart != null && parsedEnd != null && parsedStart < parsedEnd) {
+                            onWorkdayChange(parsedStart.toString(), parsedEnd.toString())
+                            workdayError = null
+                        } else workdayError = "Gunakan format HH:mm dan pastikan jam selesai setelah jam mulai."
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Simpan rentang jam kerja") }
+                Text("Format 24 jam. Contoh 08:00–17:00. Rentang harus berada dalam hari yang sama.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
