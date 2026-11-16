@@ -142,11 +142,15 @@ internal fun BackupRestoreScreen(
                                 database.taskDao().getAllForBackup().forEach { task ->
                                     ReminderScheduler.cancel(context, task.id)
                                 }
-                                BackupManager.restore(database, backup)
-                                // Rebuild future reminders from the restored task records.
-                                val pendingReminders = database.taskDao()
-                                    .getTasksWithPendingReminders(System.currentTimeMillis())
-                                ReminderScheduler.reconcile(context, pendingReminders)
+                                try {
+                                    BackupManager.restore(database, backup)
+                                } finally {
+                                    // Reconcile even when restore fails, so the still-current database
+                                    // does not lose its reminders after old work was cancelled.
+                                    val pendingReminders = database.taskDao()
+                                        .getTasksWithPendingReminders(System.currentTimeMillis())
+                                    ReminderScheduler.reconcile(context, pendingReminders)
+                                }
                             }
                         }
                         message = if (result.isSuccess) "Restore berhasil. Data lokal dan pengingat telah disesuaikan dengan file backup."
