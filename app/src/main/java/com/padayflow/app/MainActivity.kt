@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
             val themeMode by themeFlow.collectAsState(initial = "system")
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
-                    PaDayFlowApp(database.taskDao(), database.habitDao(), database.noteDao(),
+                    PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(),
                         themeMode = themeMode, onThemeChange = { selected ->
                             lifecycleScope.launch { settings.edit { it[THEME_MODE] = selected } }
                         })
@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -73,6 +73,7 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, the
     var showSmartAssistant by remember { mutableStateOf(false) }
     var showAnalytics by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showBackupRestore by remember { mutableStateOf(false) }
     var openedNotesType by remember { mutableStateOf<String?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val habits by habitDao.observeHabits().collectAsState(initial = emptyList())
@@ -113,13 +114,16 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, the
                     onBack = { showAnalytics = false })
                 showSettings -> SettingsScreen(themeMode, Modifier.padding(padding),
                     onBack = { showSettings = false }, onThemeChange = onThemeChange)
+                showBackupRestore -> BackupRestoreScreen(database, Modifier.padding(padding),
+                    onBack = { showBackupRestore = false })
                 else -> MoreMenu(Modifier.padding(padding),
                     onHabitClick = { showHabitTracker = true },
                     onNotesClick = { openedNotesType = "NOTE" },
                     onBrainDumpClick = { openedNotesType = "BRAIN_DUMP" },
                     onSmartAssistantClick = { showSmartAssistant = true },
                     onAnalyticsClick = { showAnalytics = true },
-                    onSettingsClick = { showSettings = true })
+                    onSettingsClick = { showSettings = true },
+                    onBackupClick = { showBackupRestore = true })
             }
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
@@ -280,7 +284,7 @@ private fun TaskList(
 }
 
 @Composable
-private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit) {
+private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit, onBackupClick: () -> Unit) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Lainnya", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Card(onClick = onHabitClick, modifier = Modifier.fillMaxWidth(),
@@ -343,6 +347,19 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
                 Column(Modifier.weight(1f)) {
                     Text("Brain Dump", fontWeight = FontWeight.SemiBold)
                     Text("Tuangkan ide dan pikiran tanpa struktur.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+        }
+        Card(onClick = onBackupClick, modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.CloudUpload, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Backup & Restore", fontWeight = FontWeight.SemiBold)
+                    Text("Simpan atau pulihkan data aplikasi melalui file JSON.", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null)
