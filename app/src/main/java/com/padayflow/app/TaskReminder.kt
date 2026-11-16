@@ -23,6 +23,7 @@ import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 
 private const val CHANNEL_ID = "padayflow_task_reminders"
@@ -51,8 +52,18 @@ internal object ReminderScheduler {
 internal class TaskReminderWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
         val taskId = inputData.getLong("taskId", -1L)
-        val title = inputData.getString("title") ?: "Tugas PaDayFlow"
+        val fallbackTitle = inputData.getString("title") ?: "Tugas PaDayFlow"
         if (taskId <= 0) return Result.failure()
+        val task = try {
+            runBlocking(Dispatchers.IO) { PaDayFlowDatabase.getInstance(applicationContext).taskDao().getTaskById(taskId) }
+        } catch (_: Exception) {
+            return Result.retry()
+        }
+        if (task == null || task.status == "Selesai" || task.status == "Dibatalkan") {
+            NotificationManagerCompat.from(applicationContext).cancel(taskId.toInt())
+            return Result.success()
+        }
+        val title = task.title.ifBlank { fallbackTitle }
         createReminderChannel(applicationContext)
         val openIntent = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)
         val contentPending = openIntent?.let {
