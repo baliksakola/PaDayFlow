@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.dp
 import com.padayflow.app.data.PaDayFlowDatabase
 import com.padayflow.app.data.TaskDao
 import com.padayflow.app.data.TaskEntity
+import com.padayflow.app.data.HabitDao
+import com.padayflow.app.data.HabitEntity
+import com.padayflow.app.data.HabitLogEntity
 import com.padayflow.app.ui.theme.PaDayFlowTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,16 +42,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val dao = PaDayFlowDatabase.getInstance(applicationContext).taskDao()
-        setContent { PaDayFlowTheme { Surface(Modifier.fillMaxSize()) { PaDayFlowApp(dao) } } }
+        setContent { PaDayFlowTheme { Surface(Modifier.fillMaxSize()) { PaDayFlowApp(dao, PaDayFlowDatabase.getInstance(applicationContext).habitDao()) } } }
     }
 }
 
 @Composable
-private fun PaDayFlowApp(dao: TaskDao) {
+private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao) {
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<TaskEntity?>(null) }
+    var showHabitTracker by remember { mutableStateOf(false) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
@@ -76,6 +80,8 @@ private fun PaDayFlowApp(dao: TaskDao) {
                 onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             3 -> CalendarScreen(tasks, Modifier.padding(padding), onEdit = { editing = it })
+            4 -> if (showHabitTracker) HabitTrackerScreen(habitDao, Modifier.padding(padding), onBack = { showHabitTracker = false })
+                else MoreMenu(Modifier.padding(padding), onHabitClick = { showHabitTracker = true })
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
     }
@@ -231,6 +237,149 @@ private fun TaskList(
                 TaskCard(task, onClick = { onEdit(task) }, onComplete = { onComplete(task) }, onDelete = { onDelete(task) })
             }
         }
+    }
+}
+
+@Composable
+private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit) {
+    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Lainnya", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Card(onClick = onHabitClick, modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.CheckCircle, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Habit Tracker", fontWeight = FontWeight.SemiBold)
+                    Text("Pantau kebiasaan, target mingguan, dan streak.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+        }
+        Text("Modul lain akan ditambahkan bertahap.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun HabitTrackerScreen(
+    dao: HabitDao,
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit
+) {
+    val habits by dao.observeHabits().collectAsState(initial = emptyList())
+    val logs by dao.observeLogs().collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
+    var adding by remember { mutableStateOf(false) }
+    var habitName by remember { mutableStateOf("") }
+    var target by remember { mutableStateOf("7") }
+    val today = LocalDate.now()
+    val todayKey = today.toString()
+    val weekStart = today.with(java.time.DayOfWeek.MONDAY)
+
+    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }
+            Column(Modifier.weight(1f)) {
+                Text("Habit Tracker", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Bangun konsistensi setiap hari.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = { adding = true }) { Icon(Icons.Outlined.Add, contentDescription = "Tambah kebiasaan") }
+        }
+        if (habits.isEmpty()) {
+            EmptyState("Belum ada kebiasaan", "Tambahkan kebiasaan pertama, misalnya membaca, olahraga, atau minum air.")
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(habits, key = { it.id }) { habit ->
+                    val completedDates = logs.filter { it.habitId == habit.id && it.completed }.map { it.date }.toSet()
+                    val doneToday = todayKey in completedDates
+                    val weeklyCount = (0..6).count { weekStart.plusDays(it.toLong()).toString() in completedDates }
+                    var menuExpanded by remember(habit.id) { mutableStateOf(false) }
+                    Card(modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        shape = RoundedCornerShape(18.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(habit.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
+                                    Text("$weeklyCount / ${habit.targetPerWeek} kali minggu ini",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Box {
+                                    IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "Menu kebiasaan") }
+                                    DropdownMenu(menuExpanded, { menuExpanded = false }) {
+                                        DropdownMenuItem(text = { Text("Hapus kebiasaan") }, onClick = {
+                                            menuExpanded = false
+                                            scope.launch { withContext(Dispatchers.IO) {
+                                                dao.deleteLogsForHabit(habit.id)
+                                                dao.deleteHabit(habit.id)
+                                            } }
+                                        })
+                                    }
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                repeat(7) { index ->
+                                    val dateKey = weekStart.plusDays(index.toLong()).toString()
+                                    val checked = dateKey in completedDates
+                                    Surface(
+                                        modifier = Modifier.weight(1f).padding(horizontal = 2.dp).height(30.dp)
+                                            .clickable {
+                                                scope.launch { withContext(Dispatchers.IO) {
+                                                    if (checked) dao.removeLog(habit.id, dateKey)
+                                                    else dao.saveLog(HabitLogEntity(habit.id, dateKey))
+                                                } }
+                                            },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(listOf("S", "S", "R", "K", "J", "S", "M")[index],
+                                                color = if (checked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (doneToday) "Selesai hari ini" else "Belum selesai hari ini",
+                                    modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                FilledTonalButton(onClick = {
+                                    scope.launch { withContext(Dispatchers.IO) {
+                                        if (doneToday) dao.removeLog(habit.id, todayKey)
+                                        else dao.saveLog(HabitLogEntity(habit.id, todayKey))
+                                    } }
+                                }) { Text(if (doneToday) "Batalkan" else "Tandai selesai") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (adding) {
+        AlertDialog(
+            onDismissRequest = { adding = false },
+            title = { Text("Tambah kebiasaan") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(habitName, { habitName = it }, label = { Text("Nama kebiasaan") }, singleLine = true)
+                    OutlinedTextField(target, { target = it.filter(Char::isDigit).take(1) },
+                        label = { Text("Target per minggu (1–7)") }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                Button(enabled = habitName.isNotBlank() && (target.toIntOrNull() ?: 0) in 1..7, onClick = {
+                    scope.launch { withContext(Dispatchers.IO) {
+                        dao.insertHabit(HabitEntity(name = habitName.trim(), targetPerWeek = target.toInt()))
+                    } }
+                    habitName = ""; target = "7"; adding = false
+                }) { Text("Simpan") }
+            },
+            dismissButton = { TextButton(onClick = { adding = false }) { Text("Batal") } }
+        )
     }
 }
 
