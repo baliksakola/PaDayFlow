@@ -47,6 +47,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -261,34 +262,61 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
 
 @Composable
 private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, onOpenTask: (TaskEntity) -> Unit) {
-    val date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID")))
-    val done = tasks.count { it.status == "Selesai" }
-    val open = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("PaDayFlow", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(date.replaceFirstChar { it.uppercase(Locale("id", "ID")) }, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("Selamat datang.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Susun prioritas, lalu kerjakan satu per satu.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Ringkasan tugas", fontWeight = FontWeight.SemiBold)
-                Text(done.toString() + " selesai · " + open.size.toString() + " belum selesai",
-                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(tasks.size.toString() + " tugas tersimpan di perangkat")
+    val today = LocalDate.now()
+    val dateLabel = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID"))).replaceFirstChar { it.uppercase(Locale("id", "ID")) }
+    val active = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
+    val completed = tasks.count { it.status == "Selesai" }
+    val urgent = active.count { it.priority == "Mendesak" || it.priority == "Tinggi" }
+    val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val todayEnd = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val overdue = active.count { it.deadlineAt?.let { d -> d < todayStart } == true }
+    val todayTasks = active.filter { t -> (t.startAt != null && t.startAt >= todayStart && t.startAt < todayEnd) || (t.scheduledStartAt != null && t.scheduledStartAt >= todayStart && t.scheduledStartAt < todayEnd) }.distinctBy { it.id }.sortedBy { it.scheduledStartAt ?: it.startAt ?: Long.MAX_VALUE }
+    val completion = if (tasks.isEmpty()) 0 else (completed * 100 / tasks.size).coerceIn(0, 100)
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("PADAYFLOW", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, letterSpacing = androidx.compose.ui.unit.sp(1.8f))
+                Text(dateLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Icon(Icons.Outlined.WbSunny, contentDescription = "Hari ini", modifier = Modifier.padding(11.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer) }
+        }
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("RUANG KENDALI HARIAN", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f), style = MaterialTheme.typography.labelLarge)
+                        Text(if (todayTasks.isEmpty()) "Mulai atur harimu." else "Satu per satu, selesaikan yang penting.", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    }
+                    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f)) { Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text("$completion%", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Selesai", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall) } }
+                }
+                LinearProgressIndicator(progress = { completion / 100f }, modifier = Modifier.fillMaxWidth().height(7.dp), color = MaterialTheme.colorScheme.onPrimary, trackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("$completed selesai", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelMedium); Text("${active.size} masih aktif", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelMedium) }
             }
         }
-        Heading("Agenda dan tugas terbaru", "Pilih tugas untuk melihat atau mengubah detail")
-        if (tasks.isEmpty()) EmptyState("Belum ada agenda", "Tekan tombol + untuk menambahkan tugas pertama.")
-        else tasks.take(4).forEach { TaskCard(it, onClick = { onOpenTask(it) }) }
-        Heading("Prioritas utama", "Tugas tinggi dan mendesak")
-        val priorities = open.filter { it.priority == "Tinggi" || it.priority == "Mendesak" }.take(3)
-        if (priorities.isEmpty()) EmptyState("Belum ada prioritas tinggi", "Tandai tugas penting dengan prioritas Tinggi atau Mendesak.")
-        else priorities.forEach { TaskCard(it, onClick = { onOpenTask(it) }) }
-        Spacer(Modifier.height(70.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashboardMetric("Agenda hari ini", todayTasks.size.toString(), Icons.Outlined.Today, Modifier.weight(1f))
+            DashboardMetric("Prioritas", urgent.toString(), Icons.Outlined.Flag, Modifier.weight(1f))
+            DashboardMetric("Terlambat", overdue.toString(), Icons.Outlined.WarningAmber, Modifier.weight(1f))
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) { Text("Fokus hari ini", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Agenda yang perlu kamu perhatikan", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (todayTasks.isEmpty()) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) { Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.EventAvailable, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp)); Column { Text("Hari masih terbuka", fontWeight = FontWeight.SemiBold); Text("Tambahkan tanggal mulai atau jadwal agar agenda muncul di sini.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+        } else todayTasks.take(4).forEach { task ->
+            Card(Modifier.fillMaxWidth().clickable { onOpenTask(task) }, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) { Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) { Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer) { Icon(Icons.Outlined.Checklist, contentDescription = null, modifier = Modifier.padding(10.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }; Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(task.title, fontWeight = FontWeight.SemiBold, maxLines = 1); Text("${task.category} · ${task.priority}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; task.scheduledStartAt?.let { Text(formatTime(it), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }; Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) { Text("Butuh perhatian", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("Prioritas tinggi dan mendesak", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        val priorityTasks = active.filter { it.priority == "Mendesak" || it.priority == "Tinggi" }.sortedWith(compareBy<TaskEntity>({ if (it.priority == "Mendesak") 0 else 1 }, { it.deadlineAt ?: Long.MAX_VALUE })).take(3)
+        if (priorityTasks.isEmpty()) Text("Tidak ada tugas prioritas tinggi saat ini.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) else priorityTasks.forEach { TaskCard(it, onClick = { onOpenTask(it) }) }
+        Spacer(Modifier.height(72.dp))
     }
 }
 
+@Composable
+private fun DashboardMetric(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+    Card(modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary); Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
 @Composable
 private fun MyDay(
     tasks: List<TaskEntity>,
@@ -1482,9 +1510,8 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                         }
                     }
                 }
-                OutlinedTextField(startDate, { startDate = it }, label = { Text("Tanggal mulai (YYYY-MM-DD)") },
-                    supportingText = { Text("Opsional. Contoh: 2026-11-20") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline (YYYY-MM-DD)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                CalendarDateField("Tanggal mulai", startDate, { startDate = it }, "Opsional")
+                CalendarDateField("Deadline", deadline, { deadline = it })
                 Text("Waktu pengerjaan (opsional)", style = MaterialTheme.typography.labelLarge)
                 OutlinedTextField(scheduledStartTime, { scheduledStartTime = it }, label = { Text("Jam mulai (HH:mm)") },
                     supportingText = { Text("Gunakan tanggal mulai di atas. Contoh: 08:00") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -1501,12 +1528,11 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                 }
                 if (recurrenceRule != "NONE") {
                     OutlinedTextField(recurrenceInterval, { recurrenceInterval = it.filter(Char::isDigit).take(3) }, label = { Text("Interval pengulangan") }, supportingText = { Text("1 = setiap periode; 2 = setiap dua periode.") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(recurrenceEnd, { recurrenceEnd = it }, label = { Text("Berakhir pada (YYYY-MM-DD, opsional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    CalendarDateField("Berakhir pada", recurrenceEnd, { recurrenceEnd = it }, "Opsional")
                 }
                 OutlinedTextField(estimate, { estimate = it.filter(Char::isDigit) }, label = { Text("Estimasi durasi (menit)") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(reminder, { reminder = it }, label = { Text("Tanggal pengingat (YYYY-MM-DD)") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                CalendarDateField("Tanggal pengingat", reminder, { reminder = it }, "Opsional")
                 OutlinedTextField(reminderTime, { reminderTime = it }, label = { Text("Jam pengingat (HH:mm)") },
                     supportingText = { Text("Opsional. Jika kosong, pengingat dijadwalkan pukul 09:00.") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -1564,6 +1590,25 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
     )
+}
+
+@Composable
+private fun CalendarDateField(label: String, value: String, onDateSelected: (String) -> Unit, supportingText: String? = null) {
+    var showPicker by remember { mutableStateOf(false) }
+    val initialMillis = remember(value) { runCatching { LocalDate.parse(value).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }.getOrNull() }
+    OutlinedTextField(
+        value = value.takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it).format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("id", "ID"))) }.getOrDefault(it) } ?: "",
+        onValueChange = {}, readOnly = true, label = { Text(label) }, placeholder = { Text("Pilih tanggal") },
+        supportingText = supportingText?.let { { Text(it) } },
+        trailingIcon = { Row(verticalAlignment = Alignment.CenterVertically) { if (value.isNotBlank()) IconButton(onClick = { onDateSelected("") }) { Icon(Icons.Outlined.Close, contentDescription = "Hapus tanggal") }; IconButton(onClick = { showPicker = true }) { Icon(Icons.Outlined.CalendarMonth, contentDescription = "Pilih tanggal") } } },
+        singleLine = true, modifier = Modifier.fillMaxWidth().clickable { showPicker = true }
+    )
+    if (showPicker) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(onDismissRequest = { showPicker = false },
+            confirmButton = { TextButton(onClick = { pickerState.selectedDateMillis?.let { millis -> onDateSelected(Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().format(dateFormatter)) }; showPicker = false }, enabled = pickerState.selectedDateMillis != null) { Text("Pilih") } },
+            dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Batal") } }) { DatePicker(state = pickerState, showModeToggle = true) }
+    }
 }
 
 private suspend fun completeTaskAndScheduleNext(
