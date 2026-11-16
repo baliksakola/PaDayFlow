@@ -8,7 +8,13 @@ data class TaskEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
     val category: String = "Pribadi",
+    val description: String = "",
     val priority: String = "Normal",
     val status: String = "Belum dikerjakan",
+    val startAt: Long? = null,
+    val deadlineAt: Long? = null,
+    val estimatedMinutes: Int = 0,
+    val reminderAt: Long? = null,
+    val notes: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
