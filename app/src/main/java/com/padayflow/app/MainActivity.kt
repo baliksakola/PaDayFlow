@@ -110,11 +110,13 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
     val habitLogs by habitDao.observeLogs().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
+    var handledNotificationTaskId by remember { mutableLongStateOf(-1L) }
     LaunchedEffect(initialTaskId, tasks) {
-        if (initialTaskId > 0L) {
+        if (initialTaskId > 0L && handledNotificationTaskId != initialTaskId) {
             tasks.firstOrNull { it.id == initialTaskId }?.let {
                 editing = it
                 tab = 2
+                handledNotificationTaskId = initialTaskId
             }
         }
     }
