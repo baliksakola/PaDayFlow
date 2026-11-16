@@ -22,7 +22,7 @@ data class ParsedBackup(
 
 object BackupManager {
     private const val FORMAT = "padayflow-backup"
-    private const val VERSION = 2
+    private const val VERSION = 3
 
     suspend fun createBackup(database: PaDayFlowDatabase): String {
         val tasks = database.taskDao().getAllForBackup()
@@ -44,7 +44,10 @@ object BackupManager {
                     .put("reminderAt", item.reminderAt ?: JSONObject.NULL)
                     .put("notes", item.notes).put("createdAt", item.createdAt)
                     .put("scheduledStartAt", item.scheduledStartAt ?: JSONObject.NULL)
-                    .put("scheduledEndAt", item.scheduledEndAt ?: JSONObject.NULL)) }
+                    .put("scheduledEndAt", item.scheduledEndAt ?: JSONObject.NULL)
+                    .put("recurrenceRule", item.recurrenceRule)
+                    .put("recurrenceInterval", item.recurrenceInterval)
+                    .put("recurrenceEndAt", item.recurrenceEndAt ?: JSONObject.NULL)) }
             })
             .put("habits", JSONArray().apply {
                 habits.forEach { item -> put(JSONObject().put("id", item.id).put("name", item.name)
@@ -81,7 +84,10 @@ object BackupManager {
                 reminderAt = o.nullableLong("reminderAt"), notes = o.optString("notes", ""),
                 createdAt = o.getLong("createdAt"),
                 scheduledStartAt = if (backupVersion >= 2) o.nullableLong("scheduledStartAt") else null,
-                scheduledEndAt = if (backupVersion >= 2) o.nullableLong("scheduledEndAt") else null
+                scheduledEndAt = if (backupVersion >= 2) o.nullableLong("scheduledEndAt") else null,
+                recurrenceRule = if (backupVersion >= 3) o.optString("recurrenceRule", "NONE") else "NONE",
+                recurrenceInterval = if (backupVersion >= 3) o.optInt("recurrenceInterval", 1).coerceIn(1, 365) else 1,
+                recurrenceEndAt = if (backupVersion >= 3) o.nullableLong("recurrenceEndAt") else null
             ).also { require(it.id > 0 && it.title.isNotBlank()) { "Data tugas tidak valid." } }
         }
         val habits = root.getJSONArray("habits").toList { o ->
