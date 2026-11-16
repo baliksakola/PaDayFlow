@@ -71,6 +71,20 @@ internal fun DailyPlanningScreen(
                     style = MaterialTheme.typography.bodySmall)
             }
         }
+        if (plannedMinutes > capacityMinutes) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Beban kerja melebihi kapasitas", fontWeight = FontWeight.SemiBold)
+                    Text("Estimasi tugas terjadwal ${plannedMinutes / 60} jam ${plannedMinutes % 60} menit, sedangkan kapasitas harian hanya ${productiveHours} jam. Pertimbangkan memindahkan sebagian tugas.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        } else if (plannedMinutes >= capacityMinutes * 0.8f) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                Text("Kapasitas hampir penuh. Sisakan ruang untuk pekerjaan tak terduga dan jeda.", Modifier.padding(14.dp),
+                    style = MaterialTheme.typography.bodySmall)
+            }
+        }
         if (conflicts.isNotEmpty()) {
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
