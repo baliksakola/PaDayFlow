@@ -179,6 +179,17 @@ class TimeBlockPlannerTest {
     }
 
     @Test
+    fun freeSlotsDoNotOverlapProposedTaskSlots() {
+        val candidate = TaskEntity(id = 55, title = "Menyiapkan materi", estimatedMinutes = 60)
+        val result = TimeBlockPlanner.plan(date, listOf(candidate), 6, "", zone)
+
+        val proposal = result.proposedSlots.single()
+        assertTrue(result.freeSlots.none { gap ->
+            gap.startAt < proposal.endAt && gap.endAt > proposal.startAt
+        })
+    }
+
+    @Test
     fun capacityIsClampedAndNeverCreatesOverlappingProposals() {
         val tasks = listOf(
             TaskEntity(id = 1, title = "A", estimatedMinutes = 300),
