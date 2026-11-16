@@ -91,6 +91,19 @@ class TimeBlockPlannerTest {
     }
 
     @Test
+    fun scheduledTaskWithoutDateOnlyStartIsCountedInTodayPlan() {
+        val scheduled = TaskEntity(
+            id = 9, title = "Jadwal dari time block",
+            scheduledStartAt = at("10:00"), scheduledEndAt = at("11:00"),
+            estimatedMinutes = 60
+        )
+        val result = TimeBlockPlanner.plan(date, listOf(scheduled), 6, "", zone)
+        assertEquals(1, result.todayTasks.size)
+        assertEquals(60, result.plannedMinutes)
+        assertTrue(result.candidates.isEmpty())
+    }
+
+    @Test
     fun candidateOrderFollowsPriorityThenDeadline() {
         val normal = TaskEntity(id = 1, title = "Normal", estimatedMinutes = 30, priority = "Normal")
         val urgent = TaskEntity(id = 2, title = "Mendesak", estimatedMinutes = 30, priority = "Mendesak")
