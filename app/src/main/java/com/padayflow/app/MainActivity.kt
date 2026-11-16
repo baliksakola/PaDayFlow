@@ -1228,6 +1228,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
 private suspend fun completeTaskAndScheduleNext(task: TaskEntity, dao: TaskDao, context: android.content.Context) {
     if (task.status == "Selesai") return
     dao.updateStatus(task.id, "Selesai")
+    ReminderScheduler.cancel(context, task.id)
     if (task.recurrenceRule == "NONE") return
     val zone = ZoneId.systemDefault()
     val baseDate = task.startAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: LocalDate.now()
