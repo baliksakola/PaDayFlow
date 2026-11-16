@@ -67,6 +67,10 @@ class RecurringTaskFactoryTest {
 
         assertNotNull(next)
         assertEquals(millis("2026-02-28"), next!!.startAt)
+
+        val following = RecurringTaskFactory.next(next, zone, millis("2026-02-28"))
+        assertNotNull(following)
+        assertEquals(millis("2026-03-31"), following!!.startAt)
     }
 
     @Test
