@@ -44,8 +44,13 @@ internal object ReminderScheduler {
         WorkManager.getInstance(context).cancelUniqueWork("task-reminder-$taskId")
     }
 
-    fun snooze(context: Context, taskId: Long, title: String) {
-        schedule(context, taskId, title, System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1))
+    fun reconcile(context: Context, tasks: List<TaskEntity>) {
+        tasks.forEach { task ->
+            val trigger = task.reminderAt
+            if (trigger != null && trigger > System.currentTimeMillis()) {
+                schedule(context, task.id, task.title, trigger)
+            }
+        }
     }
 }
 
@@ -139,8 +144,17 @@ class ReminderActionReceiver : BroadcastReceiver() {
             }
             ACTION_SNOOZE -> {
                 val title = intent.getStringExtra("title") ?: "Tugas PaDayFlow"
-                ReminderScheduler.snooze(context, taskId, title)
-                NotificationManagerCompat.from(context).cancel(taskId.toInt())
+                val snoozedUntil = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1)
+                val pending = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        PaDayFlowDatabase.getInstance(context).taskDao().updateReminderAt(taskId, snoozedUntil)
+                        ReminderScheduler.schedule(context, taskId, title, snoozedUntil)
+                        NotificationManagerCompat.from(context).cancel(taskId.toInt())
+                    } finally {
+                        pending.finish()
+                    }
+                }
             }
         }
     }
