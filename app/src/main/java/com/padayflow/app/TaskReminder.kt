@@ -43,9 +43,14 @@ internal object ReminderScheduler {
     }
 
     fun reconcile(context: Context, tasks: List<TaskEntity>) {
+        val now = System.currentTimeMillis()
         tasks.forEach { task ->
             val trigger = task.reminderAt
-            if (trigger != null && trigger > System.currentTimeMillis()) {
+            if (task.status == "Selesai" || task.status == "Dibatalkan" ||
+                trigger == null || trigger <= now) {
+                cancel(context, task.id)
+                NotificationManagerCompat.from(context).cancel(task.id.toInt())
+            } else {
                 schedule(context, task.id, task.title, trigger)
             }
         }
