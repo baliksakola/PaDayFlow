@@ -22,7 +22,7 @@ data class ParsedBackup(
 
 object BackupManager {
     private const val FORMAT = "padayflow-backup"
-    private const val VERSION = 1
+    private const val VERSION = 2
 
     suspend fun createBackup(database: PaDayFlowDatabase): String {
         val tasks = database.taskDao().getAllForBackup()
@@ -42,7 +42,9 @@ object BackupManager {
                     .put("deadlineAt", item.deadlineAt ?: JSONObject.NULL)
                     .put("estimatedMinutes", item.estimatedMinutes)
                     .put("reminderAt", item.reminderAt ?: JSONObject.NULL)
-                    .put("notes", item.notes).put("createdAt", item.createdAt)) }
+                    .put("notes", item.notes).put("createdAt", item.createdAt)
+                    .put("scheduledStartAt", item.scheduledStartAt ?: JSONObject.NULL)
+                    .put("scheduledEndAt", item.scheduledEndAt ?: JSONObject.NULL)) }
             })
             .put("habits", JSONArray().apply {
                 habits.forEach { item -> put(JSONObject().put("id", item.id).put("name", item.name)
@@ -64,7 +66,8 @@ object BackupManager {
         require(json.length <= 20_000_000) { "Ukuran file backup terlalu besar." }
         val root = JSONObject(json)
         require(root.optString("format") == FORMAT) { "File bukan backup PaDayFlow." }
-        require(root.optInt("version", -1) == VERSION) { "Versi backup tidak didukung." }
+        val backupVersion = root.optInt("version", -1)
+        require(backupVersion in 1..VERSION) { "Versi backup tidak didukung." }
 
         val tasks = root.getJSONArray("tasks").toList { o ->
             TaskEntity(
@@ -76,7 +79,9 @@ object BackupManager {
                 startAt = o.nullableLong("startAt"), deadlineAt = o.nullableLong("deadlineAt"),
                 estimatedMinutes = o.optInt("estimatedMinutes", 0),
                 reminderAt = o.nullableLong("reminderAt"), notes = o.optString("notes", ""),
-                createdAt = o.getLong("createdAt")
+                createdAt = o.getLong("createdAt"),
+                scheduledStartAt = if (backupVersion >= 2) o.nullableLong("scheduledStartAt") else null,
+                scheduledEndAt = if (backupVersion >= 2) o.nullableLong("scheduledEndAt") else null
             ).also { require(it.id > 0 && it.title.isNotBlank()) { "Data tugas tidak valid." } }
         }
         val habits = root.getJSONArray("habits").toList { o ->
