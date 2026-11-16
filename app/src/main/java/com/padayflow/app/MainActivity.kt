@@ -56,8 +56,11 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao) {
     var deleting by remember { mutableStateOf<TaskEntity?>(null) }
     var showHabitTracker by remember { mutableStateOf(false) }
     var showSmartAssistant by remember { mutableStateOf(false) }
+    var showAnalytics by remember { mutableStateOf(false) }
     var openedNotesType by remember { mutableStateOf<String?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
+    val habits by habitDao.observeHabits().collectAsState(initial = emptyList())
+    val habitLogs by habitDao.observeLogs().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -90,11 +93,14 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao) {
                 showHabitTracker -> HabitTrackerScreen(habitDao, Modifier.padding(padding), onBack = { showHabitTracker = false })
                 showSmartAssistant -> SmartAssistantScreen(tasks, Modifier.padding(padding),
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
+                showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
+                    onBack = { showAnalytics = false })
                 else -> MoreMenu(Modifier.padding(padding),
                     onHabitClick = { showHabitTracker = true },
                     onNotesClick = { openedNotesType = "NOTE" },
                     onBrainDumpClick = { openedNotesType = "BRAIN_DUMP" },
-                    onSmartAssistantClick = { showSmartAssistant = true })
+                    onSmartAssistantClick = { showSmartAssistant = true },
+                    onAnalyticsClick = { showAnalytics = true })
             }
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
@@ -255,7 +261,7 @@ private fun TaskList(
 }
 
 @Composable
-private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit) {
+private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Lainnya", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Card(onClick = onHabitClick, modifier = Modifier.fillMaxWidth(),
@@ -297,6 +303,19 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null)
             }
         }
+        Card(onClick = onAnalyticsClick, modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Analytics, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Analytics", fontWeight = FontWeight.SemiBold)
+                    Text("Lihat ringkasan tugas, estimasi waktu, dan konsistensi habit.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+        }
         Card(onClick = onBrainDumpClick, modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -311,6 +330,105 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
             }
         }
         Text("Modul lain akan ditambahkan bertahap.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun AnalyticsScreen(
+    tasks: List<TaskEntity>,
+    habits: List<HabitEntity>,
+    habitLogs: List<HabitLogEntity>,
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit
+) {
+    val today = LocalDate.now()
+    val fromDate = today.minusDays(29)
+    val zone = ZoneId.systemDefault()
+    val fromMillis = fromDate.atStartOfDay(zone).toInstant().toEpochMilli()
+    val untilMillis = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    val periodTasks = tasks.filter { it.createdAt >= fromMillis && it.createdAt < untilMillis }
+    val completed = periodTasks.count { it.status == "Selesai" }
+    val open = periodTasks.count { it.status != "Selesai" && it.status != "Dibatalkan" }
+    val cancelled = periodTasks.count { it.status == "Dibatalkan" }
+    val completionRate = if (periodTasks.isEmpty()) 0 else (completed * 100 / periodTasks.size)
+    val overdue = tasks.count { it.status != "Selesai" && it.status != "Dibatalkan" &&
+        it.deadlineAt != null && it.deadlineAt < today.atStartOfDay(zone).toInstant().toEpochMilli() }
+    val categoryEstimates = periodTasks.groupBy { it.category }
+        .mapValues { entry -> entry.value.sumOf { it.estimatedMinutes.coerceAtLeast(0) } }
+        .filterValues { it > 0 }.toList().sortedByDescending { it.second }.take(5)
+    val logsFrom = fromDate.toString()
+    val logsUntil = today.toString()
+    val habitCheckins = habitLogs.count { it.completed && it.date >= logsFrom && it.date <= logsUntil }
+    val habitExpected = habits.sumOf { it.targetPerWeek.coerceIn(1, 7) } * 30.0 / 7.0
+    val habitRate = if (habitExpected <= 0) 0 else (habitCheckins * 100 / habitExpected).toInt().coerceAtMost(100)
+
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }
+            Column(Modifier.weight(1f)) {
+                Text("Analytics", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Periode 30 hari: ${fromDate.format(dateFormatter)} – ${today.format(dateFormatter)}",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Penyelesaian tugas", fontWeight = FontWeight.SemiBold)
+                Text("${completionRate}%", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                Text("${completed} selesai dari ${periodTasks.size} tugas yang dibuat dalam periode ini.")
+                LinearProgressIndicator(progress = { completionRate / 100f }, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AnalyticsMetric("Aktif", open.toString(), Modifier.weight(1f))
+            AnalyticsMetric("Dibatalkan", cancelled.toString(), Modifier.weight(1f))
+            AnalyticsMetric("Terlambat", overdue.toString(), Modifier.weight(1f))
+        }
+        Heading("Estimasi waktu per kategori", "Akumulasi estimasi durasi tugas yang dibuat dalam periode ini.")
+        if (categoryEstimates.isEmpty()) {
+            EmptyState("Belum ada data estimasi", "Isi estimasi durasi pada tugas untuk melihat distribusi waktu.")
+        } else {
+            categoryEstimates.forEach { (category, minutes) ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(category, fontWeight = FontWeight.Medium)
+                        Text(if (minutes >= 60) "${minutes / 60} jam ${minutes % 60} menit" else "${minutes} menit",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    LinearProgressIndicator(
+                        progress = { minutes.toFloat() / categoryEstimates.maxOf { it.second }.coerceAtLeast(1) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+        Heading("Konsistensi habit", "Check-in 30 hari terakhir dibandingkan target mingguan seluruh habit.")
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("${habitRate}%", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("${habitCheckins} check-in · target periode sekitar ${habitExpected.toInt()} check-in")
+                LinearProgressIndicator(progress = { habitRate / 100f }, modifier = Modifier.fillMaxWidth())
+                if (habits.isEmpty()) Text("Tambahkan habit untuk mulai mengukur konsistensi.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Text("Catatan: persentase tugas memakai jumlah tugas yang dibuat dalam 30 hari sebagai penyebut. Estimasi waktu bukan durasi aktual. Data habit membandingkan check-in dengan target mingguan.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun AnalyticsMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Card(modifier, shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
