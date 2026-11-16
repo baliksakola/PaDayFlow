@@ -68,7 +68,10 @@ private fun PaDayFlowApp(dao: TaskDao) {
     ) { padding ->
         when (tab) {
             0 -> Dashboard(tasks, Modifier.padding(padding), onOpenTask = { editing = it })
-            1, 2 -> TaskList(tasks, Modifier.padding(padding),
+            1 -> MyDay(tasks, Modifier.padding(padding),
+                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } } },
+                onEdit = { editing = it }, onDelete = { deleting = it })
+            2 -> TaskList(tasks, Modifier.padding(padding), title = "Semua tugas",
                 onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { dao.updateStatus(task.id, "Selesai") } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
@@ -136,18 +139,38 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
 }
 
 @Composable
-private fun TaskList(
+private fun MyDay(
     tasks: List<TaskEntity>,
     modifier: Modifier = Modifier,
     onComplete: (TaskEntity) -> Unit,
     onEdit: (TaskEntity) -> Unit,
     onDelete: (TaskEntity) -> Unit
 ) {
+    val today = LocalDate.now()
+    val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val todayTasks = tasks.filter { it.startAt != null && it.startAt >= start && it.startAt < end }
+    TaskList(todayTasks, modifier, title = "My Day", emptyTitle = "Belum ada jadwal hari ini",
+        emptyDescription = "Tugas akan muncul di sini jika tanggal mulainya diatur ke hari ini.",
+        onComplete = onComplete, onEdit = onEdit, onDelete = onDelete)
+}
+
+@Composable
+private fun TaskList(
+    tasks: List<TaskEntity>,
+    modifier: Modifier = Modifier,
+    title: String = "Semua tugas",
+    emptyTitle: String = "Belum ada tugas",
+    emptyDescription: String = "Tekan tombol + untuk membuat tugas.",
+    onComplete: (TaskEntity) -> Unit,
+    onEdit: (TaskEntity) -> Unit,
+    onDelete: (TaskEntity) -> Unit
+) {
     Column(modifier.fillMaxSize().padding(20.dp)) {
-        Text("Semua tugas", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(tasks.size.toString() + " tugas tersimpan", modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (tasks.isEmpty()) EmptyState("Belum ada tugas", "Tekan tombol + untuk membuat tugas.")
+        if (tasks.isEmpty()) EmptyState(emptyTitle, emptyDescription)
         else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(tasks, key = { it.id }) { task ->
                 TaskCard(task, onClick = { onEdit(task) }, onComplete = { onComplete(task) }, onDelete = { onDelete(task) })
@@ -191,6 +214,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
     var description by remember(task?.id) { mutableStateOf(task?.description.orEmpty()) }
     var category by remember(task?.id) { mutableStateOf(task?.category ?: "Pribadi") }
     var priority by remember(task?.id) { mutableStateOf(task?.priority ?: "Normal") }
+    var status by remember(task?.id) { mutableStateOf(task?.status ?: "Belum dikerjakan") }
     var startDate by remember(task?.id) { mutableStateOf(task?.startAt?.let(::formatDate).orEmpty()) }
     var deadline by remember(task?.id) { mutableStateOf(task?.deadlineAt?.let(::formatDate).orEmpty()) }
     var estimate by remember(task?.id) { mutableStateOf(if (task == null || task.estimatedMinutes == 0) "" else task.estimatedMinutes.toString()) }
@@ -198,6 +222,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
     var notes by remember(task?.id) { mutableStateOf(task?.notes.orEmpty()) }
     var categoryMenu by remember { mutableStateOf(false) }
     var priorityMenu by remember { mutableStateOf(false) }
+    var statusMenu by remember { mutableStateOf(false) }
     var validation by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -221,6 +246,14 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                     DropdownMenu(priorityMenu, { priorityMenu = false }) {
                         listOf("Rendah", "Normal", "Tinggi", "Mendesak").forEach {
                             DropdownMenuItem(text = { Text(it) }, onClick = { priority = it; priorityMenu = false })
+                        }
+                    }
+                }
+                Box {
+                    TextButton(onClick = { statusMenu = true }) { Text("Status: " + status + " ▾") }
+                    DropdownMenu(statusMenu, { statusMenu = false }) {
+                        listOf("Belum dikerjakan", "Sedang dikerjakan", "Tertunda", "Menunggu orang lain", "Selesai", "Dibatalkan").forEach {
+                            DropdownMenuItem(text = { Text(it) }, onClick = { status = it; statusMenu = false })
                         }
                     }
                 }
@@ -254,7 +287,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                             category = category,
                             description = description.trim(),
                             priority = priority,
-                            status = task?.status ?: "Belum dikerjakan",
+                            status = status,
                             startAt = start,
                             deadlineAt = due,
                             estimatedMinutes = estimate.toIntOrNull() ?: 0,
