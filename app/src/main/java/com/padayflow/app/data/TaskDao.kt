@@ -15,6 +15,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks ORDER BY createdAt DESC")
     fun observeTasks(): Flow<List<TaskEntity>>
 
+    @Query("SELECT * FROM tasks WHERE reminderAt IS NOT NULL AND reminderAt > :now AND status NOT IN ('Selesai', 'Dibatalkan')")
+    suspend fun getTasksWithPendingReminders(now: Long): List<TaskEntity>
+
     @Query("SELECT * FROM tasks ORDER BY createdAt DESC")
     suspend fun getAllForBackup(): List<TaskEntity>
 
