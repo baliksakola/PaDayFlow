@@ -1,6 +1,11 @@
 package com.padayflow.app
 
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.map
 import androidx.activity.ComponentActivity
@@ -47,6 +52,10 @@ private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7101)
+        }
         val database = PaDayFlowDatabase.getInstance(applicationContext)
         val settings = applicationContext.dataStore
         val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
@@ -182,7 +191,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
             text = { Text("Tugas \"" + task.title + "\" akan dihapus permanen dari perangkat.") },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { withContext(Dispatchers.IO) { dao.delete(task.id) }; deleting = null }
+                    scope.launch { withContext(Dispatchers.IO) { dao.delete(task.id) }; ReminderScheduler.cancel(this@MainActivity, task.id); deleting = null }
                 }) { Text("Hapus", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Batal") } }
