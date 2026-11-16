@@ -1083,10 +1083,10 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                 CalendarDateField("Tanggal mulai", startDate, { startDate = it }, "Opsional")
                 CalendarDateField("Deadline", deadline, { deadline = it })
                 Text("Waktu pengerjaan (opsional)", style = MaterialTheme.typography.labelLarge)
-                OutlinedTextField(scheduledStartTime, { scheduledStartTime = it }, label = { Text("Jam mulai (HH:mm)") },
-                    supportingText = { Text("Gunakan tanggal mulai di atas. Contoh: 08:00") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(scheduledEndTime, { scheduledEndTime = it }, label = { Text("Jam selesai (HH:mm)") },
-                    supportingText = { Text("Contoh: 09:30") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                TimePickerField("Jam mulai", scheduledStartTime, { scheduledStartTime = it },
+                    "Gunakan tanggal mulai di atas.")
+                TimePickerField("Jam selesai", scheduledEndTime, { scheduledEndTime = it },
+                    "Pilih waktu selesai setelah jam mulai.")
                 Text("Pengulangan", style = MaterialTheme.typography.labelLarge)
                 Box {
                     TextButton(onClick = { recurrenceMenu = true }) { Text("Ulangi: " + when (recurrenceRule) { "DAILY" -> "Setiap hari"; "WEEKLY" -> "Setiap minggu"; "MONTHLY" -> "Setiap bulan"; else -> "Tidak berulang" } + " ▾") }
@@ -1103,9 +1103,8 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                 OutlinedTextField(estimate, { estimate = it.filter(Char::isDigit) }, label = { Text("Estimasi durasi (menit)") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
                 CalendarDateField("Tanggal pengingat", reminder, { reminder = it }, "Opsional")
-                OutlinedTextField(reminderTime, { reminderTime = it }, label = { Text("Jam pengingat (HH:mm)") },
-                    supportingText = { Text("Opsional. Jika kosong, pengingat dijadwalkan pukul 09:00.") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                TimePickerField("Jam pengingat", reminderTime, { reminderTime = it },
+                    "Opsional. Jika kosong, pengingat dijadwalkan pukul 09:00.")
                 OutlinedTextField(notes, { notes = it }, label = { Text("Catatan") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                 validation?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
@@ -1159,6 +1158,52 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
             }, enabled = title.isNotBlank()) { Text("Simpan") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
+    )
+}
+
+@Composable
+private fun TimePickerField(label: String, value: String, onTimeSelected: (String) -> Unit, supportingText: String? = null) {
+    val context = LocalContext.current
+    val parsedTime = remember(value) { runCatching { LocalTime.parse(value) }.getOrNull() }
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text(label) },
+        placeholder = { Text("Pilih jam") },
+        supportingText = supportingText?.let { { Text(it) } },
+        trailingIcon = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (value.isNotBlank()) {
+                    IconButton(onClick = { onTimeSelected("") }) {
+                        Icon(Icons.Outlined.Close, contentDescription = "Hapus jam")
+                    }
+                }
+                IconButton(onClick = {
+                    val now = LocalTime.now()
+                    android.app.TimePickerDialog(
+                        context,
+                        { _, hour, minute -> onTimeSelected(String.format(Locale.ROOT, "%02d:%02d", hour, minute)) },
+                        parsedTime?.hour ?: now.hour,
+                        parsedTime?.minute ?: now.minute,
+                        true
+                    ).show()
+                }) {
+                    Icon(Icons.Outlined.Schedule, contentDescription = "Pilih jam")
+                }
+            }
+        },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth().clickable {
+            val now = LocalTime.now()
+            android.app.TimePickerDialog(
+                context,
+                { _, hour, minute -> onTimeSelected(String.format(Locale.ROOT, "%02d:%02d", hour, minute)) },
+                parsedTime?.hour ?: now.hour,
+                parsedTime?.minute ?: now.minute,
+                true
+            ).show()
+        }
     )
 }
 
