@@ -147,9 +147,8 @@ internal fun BackupRestoreScreen(
                                 } finally {
                                     // Reconcile even when restore fails, so the still-current database
                                     // does not lose its reminders after old work was cancelled.
-                                    val pendingReminders = database.taskDao()
-                                        .getTasksWithPendingReminders(System.currentTimeMillis())
-                                    ReminderScheduler.reconcile(context, pendingReminders)
+                                    val allTasks = database.taskDao().getAllForBackup()
+                                    ReminderScheduler.reconcile(context, allTasks)
                                 }
                             }
                         }
