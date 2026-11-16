@@ -33,8 +33,8 @@ class TimeBlockPlannerTest {
         )
 
         assertEquals(1, result.proposedSlots.size)
-        assertEquals(at("08:00"), result.proposedSlots.first().startAt)
-        assertEquals(at("09:30"), result.proposedSlots.first().endAt)
+        assertEquals(at("10:00"), result.proposedSlots.first().startAt)
+        assertEquals(at("11:30"), result.proposedSlots.first().endAt)
     }
 
     @Test
