@@ -478,6 +478,16 @@ private fun WorkspaceRow(title: String, description: String, icon: androidx.comp
 }
 
 
+private data class ProtectedTimeEntry(val start: String, val end: String, val name: String)
+
+private fun parseProtectedTimeEntries(raw: String): List<ProtectedTimeEntry> =
+    raw.lineSequence().filter { it.isNotBlank() }.mapNotNull { line ->
+        val parts = line.split("|", limit = 2)
+        val times = parts.firstOrNull()?.split("-", limit = 2) ?: emptyList()
+        if (parts.size != 2 || times.size != 2) null
+        else ProtectedTimeEntry(times[0].trim(), times[1].trim(), parts[1].trim())
+    }.toList()
+
 @Composable
 private fun SettingsScreen(
     themeMode: String,
@@ -498,7 +508,7 @@ private fun SettingsScreen(
     var workdayEndInput by remember(workdayEnd) { mutableStateOf(workdayEnd) }
     var workdayError by remember { mutableStateOf<String?>(null) }
     var hoursInput by remember(productiveHours) { mutableStateOf(productiveHours.toString()) }
-    var protectedInput by remember(protectedTimes) { mutableStateOf(protectedTimes) }
+    val protectedEntries = remember(protectedTimes) { mutableStateListOf<ProtectedTimeEntry>().apply { addAll(parseProtectedTimeEntries(protectedTimes)) } }
     var protectedError by remember { mutableStateOf<String?>(null) }
     var selectedSnooze by remember(snoozeMinutes) { mutableIntStateOf(snoozeMinutes) }
     val options = listOf("system" to "Ikuti sistem", "light" to "Terang", "dark" to "Gelap")
@@ -693,13 +703,64 @@ private fun SettingsScreen(
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Penyimpanan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Data tugas, habit, dan catatan tersimpan secara lokal menggunakan Room. Gunakan menu Backup & Restore untuk membuat atau memulihkan salinan data.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Protected Time", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Atur waktu yang dilindungi agar tidak dipakai oleh usulan Daily Planning. Blok yang melewati tengah malam tetap didukung.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (protectedEntries.isEmpty()) {
+                    Text("Belum ada waktu terlindungi.", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                protectedEntries.forEachIndexed { index, entry ->
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Blok ${index + 1}", modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                            IconButton(onClick = { protectedEntries.removeAt(index); protectedError = null }) {
+                                Icon(Icons.Outlined.DeleteOutline, contentDescription = "Hapus waktu terlindungi")
+                            }
+                        }
+                        OutlinedTextField(value = entry.name, onValueChange = { value ->
+                            protectedEntries[index] = entry.copy(name = value)
+                            protectedError = null
+                        }, label = { Text("Nama aktivitas") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TimePickerField("Mulai", entry.start, { value ->
+                                protectedEntries[index] = entry.copy(start = value); protectedError = null
+                            }, modifier = Modifier.weight(1f))
+                            TimePickerField("Selesai", entry.end, { value ->
+                                protectedEntries[index] = entry.copy(end = value); protectedError = null
+                            }, modifier = Modifier.weight(1f))
+                        }
+                    }
+                    if (index < protectedEntries.lastIndex) HorizontalDivider()
+                }
+                OutlinedButton(onClick = {
+                    protectedEntries.add(ProtectedTimeEntry("12:00", "13:00", "Aktivitas pribadi"))
+                    protectedError = null
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Tambah waktu terlindungi")
+                }
+                protectedError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                Button(
+                    onClick = {
+                        val valid = protectedEntries.all { entry ->
+                            entry.name.isNotBlank() &&
+                                runCatching { LocalTime.parse(entry.start); LocalTime.parse(entry.end) }.isSuccess &&
+                                entry.start != entry.end
+                        }
+                        if (valid) {
+                            onProtectedTimesChange(protectedEntries.joinToString("\n") { "${it.start}-${it.end}|${it.name.trim()}" })
+                            protectedError = null
+                        } else protectedError = "Lengkapi nama dan pilih jam mulai serta selesai yang berbeda pada setiap blok."
+                    },
+                    enabled = protectedEntries.toList() != parseProtectedTimeEntries(protectedTimes),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Simpan Protected Time") }
+                Text("Contoh: makan, ibadah, istirahat, dan waktu keluarga. Jam selesai lebih awal dari jam mulai berarti blok berlanjut ke hari berikutnya.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
