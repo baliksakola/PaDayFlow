@@ -171,8 +171,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onBack = { showDailyPlanning = false }, onOpenTask = { editing = it },
                     onApproveSchedule = { task ->
                         scope.launch {
-                            val todayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                            withContext(Dispatchers.IO) { dao.update(task.copy(startAt = todayStart)) }
+                            withContext(Dispatchers.IO) { dao.update(task) }
                         }
                     })
                 else -> MoreMenu(Modifier.padding(padding),
@@ -271,9 +270,16 @@ private fun MyDay(
     val today = LocalDate.now()
     val start = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    val todayTasks = tasks.filter { it.startAt != null && it.startAt >= start && it.startAt < end }
+    val todayTasks = tasks.filter { task ->
+        task.status != "Selesai" && task.status != "Dibatalkan" &&
+            ((task.startAt != null && task.startAt >= start && task.startAt < end) ||
+             (task.scheduledStartAt != null && task.scheduledStartAt >= start && task.scheduledStartAt < end))
+    }.distinctBy { it.id }.sortedWith(compareBy<TaskEntity>(
+        { it.scheduledStartAt ?: it.startAt ?: Long.MAX_VALUE },
+        { it.deadlineAt ?: Long.MAX_VALUE }
+    ))
     TaskList(todayTasks, modifier, title = "My Day", emptyTitle = "Belum ada jadwal hari ini",
-        emptyDescription = "Tugas akan muncul di sini jika tanggal mulainya diatur ke hari ini.",
+        emptyDescription = "Tugas dengan tanggal mulai atau jadwal waktu hari ini akan muncul di sini.",
         onComplete = onComplete, onEdit = onEdit, onDelete = onDelete)
 }
 
