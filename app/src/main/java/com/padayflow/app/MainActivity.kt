@@ -443,115 +443,40 @@ private fun TaskList(tasks: List<TaskEntity>, modifier: Modifier = Modifier, tit
 
 @Composable
 private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit, onBackupClick: () -> Unit, onDailyPlanningClick: () -> Unit) {
-    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Lainnya", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Card(onClick = onHabitClick, modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.CheckCircle, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Habit Tracker", fontWeight = FontWeight.SemiBold)
-                    Text("Pantau kebiasaan, target mingguan, dan streak.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-            }
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text("WORKSPACE / 05", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp); Text("Ruang kerja", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black); Text("Alat bantu untuk mengelola ritme dan informasi.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("PLAN & REFLECT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+            WorkspaceRow("Daily Planning", "Susun waktu dan kapasitas harian", Icons.Outlined.Today, onDailyPlanningClick)
+            WorkspaceRow("Smart Assistant", "Analisis risiko dan rekomendasi offline", Icons.Outlined.AutoAwesome, onSmartAssistantClick)
+            WorkspaceRow("Analytics", "Ringkasan produktivitas dan kebiasaan", Icons.Outlined.Analytics, onAnalyticsClick)
+            WorkspaceRow("Habit Tracker", "Pantau konsistensi kebiasaan", Icons.Outlined.CheckCircle, onHabitClick)
         }
-        Card(onClick = onNotesClick, modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.StickyNote2, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Notes", fontWeight = FontWeight.SemiBold)
-                    Text("Simpan catatan dan ide penting.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-            }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("CAPTURE & ORGANIZE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+            WorkspaceRow("Notes", "Catatan dan ide penting", Icons.Outlined.StickyNote2, onNotesClick)
+            WorkspaceRow("Brain Dump", "Tangkap pikiran tanpa struktur", Icons.Outlined.Lightbulb, onBrainDumpClick)
         }
-        Card(onClick = onDailyPlanningClick, modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Today, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Daily Planning", fontWeight = FontWeight.SemiBold)
-                    Text("Susun usulan tugas hari ini berdasarkan kapasitas produktif.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-            }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("APP & DATA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+            WorkspaceRow("Backup & Restore", "Simpan atau pulihkan data melalui JSON", Icons.Outlined.CloudUpload, onBackupClick)
+            WorkspaceRow("Settings", "Tema dan preferensi aplikasi", Icons.Outlined.Settings, onSettingsClick)
         }
-        Card(onClick = onSmartAssistantClick, modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Smart Assistant", fontWeight = FontWeight.SemiBold)
-                    Text("Analisis deadline, prioritas, dan risiko tugas secara offline.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-            }
-        }
-        Card(onClick = onAnalyticsClick, modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Analytics, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Analytics", fontWeight = FontWeight.SemiBold)
-                    Text("Lihat ringkasan tugas, estimasi waktu, dan konsistensi habit.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-            }
-        }
-        Card(onClick = onBrainDumpClick, modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Lightbulb, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Brain Dump", fontWeight = FontWeight.SemiBold)
-                    Text("Tuangkan ide dan pikiran tanpa struktur.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-            }
-        }
-        Card(onClick = onBackupClick, modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.CloudUpload, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Backup & Restore", fontWeight = FontWeight.SemiBold)
-                    Text("Simpan atau pulihkan data aplikasi melalui file JSON.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-            }
-        }
-        Card(onClick = onSettingsClick, modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Settings, contentDescription = null)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Settings", fontWeight = FontWeight.SemiBold)
-                    Text("Tema dan preferensi aplikasi.", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-            }
-        }
-        Text("Modul lain akan ditambahkan bertahap.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(72.dp))
     }
 }
+
+@Composable
+private fun WorkspaceRow(title: String, description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Icon(icon, contentDescription = null, modifier = Modifier.padding(11.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer) }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Icon(Icons.Outlined.ArrowOutward, contentDescription = "Buka $title", tint = MaterialTheme.colorScheme.primary)
+    }
+}
+
 
 @Composable
 private fun SettingsScreen(
@@ -892,101 +817,41 @@ private fun AnalyticsMetric(label: String, value: String, modifier: Modifier = M
 }
 
 @Composable
-private fun SmartAssistantScreen(
-    tasks: List<TaskEntity>,
-    productiveHours: Int,
-    modifier: Modifier = Modifier,
-    onBack: () -> Unit,
-    onOpenTask: (TaskEntity) -> Unit
-) {
+private fun SmartAssistantScreen(tasks: List<TaskEntity>, productiveHours: Int, modifier: Modifier = Modifier, onBack: () -> Unit, onOpenTask: (TaskEntity) -> Unit) {
     val today = LocalDate.now()
     val zone = ZoneId.systemDefault()
     val startToday = today.atStartOfDay(zone).toInstant().toEpochMilli()
-    val endSoon = today.plusDays(3).plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    val endSoon = today.plusDays(4).atStartOfDay(zone).toInstant().toEpochMilli()
     val active = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
     val overdue = active.filter { it.deadlineAt != null && it.deadlineAt < startToday }
     val dueSoon = active.filter { it.deadlineAt != null && it.deadlineAt >= startToday && it.deadlineAt < endSoon }
     val urgent = active.filter { it.priority == "Mendesak" || it.priority == "Tinggi" }
     val noSchedule = active.filter { it.startAt == null && it.deadlineAt == null }
-    val todayTasks = active.filter { task ->
-        task.startAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() == today } == true
-    }
+    val todayTasks = active.filter { it.startAt?.let { v -> Instant.ofEpochMilli(v).atZone(zone).toLocalDate() == today } == true }
     val plannedMinutes = todayTasks.sumOf { it.estimatedMinutes.coerceAtLeast(0) }
     val capacityMinutes = productiveHours.coerceIn(1, 16) * 60
-    val capacityPercent = (plannedMinutes * 100 / capacityMinutes).coerceAtLeast(0)
+    val capacityPercent = plannedMinutes * 100 / capacityMinutes
     val suggestions = buildList {
-        if (plannedMinutes > capacityMinutes) {
-            add("Beban terjadwal hari ini melebihi kapasitas: estimasi ${plannedMinutes / 60} jam ${plannedMinutes % 60} menit dari batas ${productiveHours} jam. Tinjau prioritas dan pertimbangkan memindahkan sebagian tugas.")
-        } else if (plannedMinutes >= capacityMinutes * 80 / 100) {
-            add("Kapasitas hari ini hampir penuh: estimasi penggunaan ${capacityPercent}% dari ${productiveHours} jam. Sisakan ruang untuk jeda dan pekerjaan tak terduga.")
-        }
-
-        overdue.forEach { add("Terlambat: ${it.title}. Tinjau progres dan tentukan jadwal tindak lanjut.") }
+        if (plannedMinutes > capacityMinutes) add("Beban terjadwal melebihi kapasitas: ${plannedMinutes / 60} jam ${plannedMinutes % 60} menit dari batas ${productiveHours} jam. Tinjau prioritas dan pertimbangkan memindahkan sebagian tugas.")
+        else if (plannedMinutes >= capacityMinutes * 80 / 100) add("Kapasitas hari ini hampir penuh: estimasi penggunaan ${capacityPercent}%. Sisakan ruang untuk jeda dan pekerjaan tak terduga.")
+        overdue.forEach { add("Terlambat: ${it.title}. Tinjau progres dan tentukan tindak lanjut.") }
         dueSoon.forEach { add("Deadline mendekat: ${it.title}. Sisihkan waktu sebelum ${formatDate(it.deadlineAt!!)}.") }
-        urgent.filter { task -> overdue.none { it.id == task.id } && dueSoon.none { it.id == task.id } }
-            .forEach { add("Prioritas tinggi: ${it.title}. Pertimbangkan untuk mengerjakannya lebih awal.") }
-        noSchedule.take(5).forEach { add("Belum dijadwalkan: ${it.title}. Tetapkan tanggal mulai atau deadline agar mudah dipantau.") }
+        urgent.filter { t -> overdue.none { it.id == t.id } && dueSoon.none { it.id == t.id } }.forEach { add("Prioritas tinggi: ${it.title}. Pertimbangkan untuk mengerjakannya lebih awal.") }
+        noSchedule.take(5).forEach { add("Belum dijadwalkan: ${it.title}. Tetapkan tanggal mulai atau deadline.") }
     }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }
-            Column(Modifier.weight(1f)) {
-                Text("Smart Assistant", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Analisis lokal berdasarkan data tugas perangkat.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Ringkasan kondisi tugas", fontWeight = FontWeight.SemiBold)
-                Text("${active.size} tugas aktif", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("${overdue.size} terlambat · ${dueSoon.size} deadline 3 hari ke depan · ${urgent.size} prioritas tinggi/mendesak")
-            }
-        }
-        Heading("Kapasitas harian", "Berdasarkan estimasi durasi tugas yang dijadwalkan mulai hari ini.")
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Estimasi beban hari ini", fontWeight = FontWeight.SemiBold)
-                    Text("${productiveHours} jam tersedia", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Text("${plannedMinutes / 60} jam ${plannedMinutes % 60} menit",
-                    style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                LinearProgressIndicator(
-                    progress = { (plannedMinutes.toFloat() / capacityMinutes).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = if (plannedMinutes > capacityMinutes) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                )
-                Text("${capacityPercent}% kapasitas terpakai · ${todayTasks.size} tugas terjadwal",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Perhitungan hanya memakai estimasi durasi pada tugas dengan tanggal mulai hari ini. Tugas tanpa estimasi dihitung 0 menit.",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Heading("Rekomendasi", "Saran dibuat dari aturan sederhana, tanpa layanan AI berbayar.")
-        if (suggestions.isEmpty()) {
-            EmptyState("Belum ada risiko yang terdeteksi", "Tetap periksa daftar tugas dan pastikan tanggal serta prioritas sudah diperbarui.")
-        } else {
-            suggestions.forEachIndexed { index, suggestion ->
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                    Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("${index + 1}.", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Text(suggestion, modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-        Heading("Tugas yang perlu diperiksa", "Pilih tugas untuk membuka detail dan mengubahnya secara manual.")
-        (overdue + dueSoon + urgent.filter { task -> overdue.none { it.id == task.id } && dueSoon.none { it.id == task.id } })
-            .distinctBy { it.id }.take(10).forEach { task -> TaskCard(task, onClick = { onOpenTask(task) }) }
-        Text("Catatan: rekomendasi ini tidak mengubah tugas, jadwal, atau status secara otomatis.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }; Column(Modifier.weight(1f)) { Text("INTELLIGENCE / 06", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold); Text("Smart Assistant", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black); Text("Analisis lokal. Keputusan tetap di tanganmu.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) { Column(Modifier.weight(1f)) { Text(active.size.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("AKTIF", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp) }; Column(Modifier.weight(1f)) { Text(overdue.size.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = if (overdue.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface); Text("TERLAMBAT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp) }; Column(Modifier.weight(1f)) { Text(dueSoon.size.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("DEADLINE DEKAT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp) } }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("CAPACITY / 01", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold); Text("Beban hari ini", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black); Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) { Text("${plannedMinutes / 60}j ${plannedMinutes % 60}m", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f)); Text("dari ${productiveHours} jam", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; LinearProgressIndicator(progress = { (plannedMinutes.toFloat() / capacityMinutes).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(7.dp), color = if (plannedMinutes > capacityMinutes) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.surfaceVariant); Text("$capacityPercent% kapasitas terpakai · ${todayTasks.size} tugas dengan tanggal mulai hari ini", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("Estimasi hanya menghitung durasi tugas yang memiliki tanggal mulai hari ini. Tugas tanpa estimasi dihitung 0 menit.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { Text("SIGNALS / 02", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold); Text("Sinyal yang perlu diperhatikan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black); if (suggestions.isEmpty()) EmptyState("Belum ada risiko yang terdeteksi", "Tetap periksa daftar tugas dan pastikan tanggal serta prioritas diperbarui.") else suggestions.forEachIndexed { index, suggestion -> Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) { Text((index + 1).toString().padStart(2, '0'), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black); Text(suggestion, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium) }; HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) } }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("REVIEW / 03", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold); Text("Perlu ditinjau", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black); val review = (overdue + dueSoon + urgent.filter { t -> overdue.none { it.id == t.id } && dueSoon.none { it.id == t.id } }).distinctBy { it.id }; if (review.isEmpty()) Text("Tidak ada tugas prioritas yang perlu ditinjau.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) else review.take(10).forEach { task -> Row(Modifier.fillMaxWidth().clickable { onOpenTask(task) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(task.title, fontWeight = FontWeight.Bold); Text("${task.priority} · ${task.status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; Icon(Icons.Outlined.ArrowOutward, contentDescription = "Buka tugas", tint = MaterialTheme.colorScheme.primary) }; HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) } }
+        Text("Rekomendasi bersifat informatif. Tidak ada tugas, jadwal, atau status yang diubah otomatis.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(30.dp))
     }
 }
+
 
 @Composable
 private fun NotesScreen(dao: NoteDao, type: String, modifier: Modifier = Modifier, onBack: () -> Unit) {
