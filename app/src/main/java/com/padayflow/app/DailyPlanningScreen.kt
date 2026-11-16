@@ -15,9 +15,12 @@ import androidx.compose.ui.unit.dp
 import com.padayflow.app.data.TaskEntity
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+data class ProposedTaskSlot(val task: TaskEntity, val startAt: Long, val endAt: Long)
 
 @Composable
 internal fun DailyPlanningScreen(
@@ -43,17 +46,37 @@ internal fun DailyPlanningScreen(
             { it.deadlineAt ?: Long.MAX_VALUE },
             { it.createdAt }
         ))
-    val remainingCandidates = candidates.toMutableList()
+    val existingSlots = todayTasks.mapNotNull { task ->
+        val start = task.scheduledStartAt
+        val end = task.scheduledEndAt
+        if (start != null && end != null && end > start) start to end else null
+    }.toMutableList()
+    val proposedSlots = mutableListOf<ProposedTaskSlot>()
     var proposedMinutes = 0
-    val proposed = buildList {
-        for (task in remainingCandidates) {
-            val duration = task.estimatedMinutes.coerceAtLeast(0)
-            if (duration > 0 && proposedMinutes + duration <= remainingMinutes) {
-                add(task)
-                proposedMinutes += duration
+    val dayStart = today.atTime(LocalTime.of(8, 0)).atZone(zone).toInstant().toEpochMilli()
+    val dayEnd = today.atTime(LocalTime.of(20, 0)).atZone(zone).toInstant().toEpochMilli()
+    var cursor = dayStart
+    for (task in candidates) {
+        val duration = task.estimatedMinutes.coerceAtLeast(0)
+        if (duration <= 0 || proposedMinutes + duration > remainingMinutes) continue
+        val durationMillis = duration * 60_000L
+        var slotStart = cursor
+        while (slotStart + durationMillis <= dayEnd) {
+            val collision = existingSlots.firstOrNull { (start, end) ->
+                slotStart < end && slotStart + durationMillis > start
             }
+            if (collision == null) break
+            slotStart = collision.second
+        }
+        if (slotStart + durationMillis <= dayEnd) {
+            val slotEnd = slotStart + durationMillis
+            proposedSlots += ProposedTaskSlot(task, slotStart, slotEnd)
+            existingSlots += slotStart to slotEnd
+            cursor = slotEnd
+            proposedMinutes += duration
         }
     }
+    val proposed = proposedSlots.map { it.task }
     val dateLabel = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID")))
         .replaceFirstChar { it.uppercase(Locale("id", "ID")) }
 
@@ -79,6 +102,19 @@ internal fun DailyPlanningScreen(
                     style = MaterialTheme.typography.bodySmall)
             }
         }
+        val conflicts = todayTasks.filter { first -> first.scheduledStartAt != null && first.scheduledEndAt != null }.filter { first ->
+            todayTasks.any { second -> second.id != first.id && second.scheduledStartAt != null && second.scheduledEndAt != null &&
+                first.scheduledStartAt!! < second.scheduledEndAt!! && first.scheduledEndAt!! > second.scheduledStartAt!! }
+        }.distinctBy { it.id }
+        if (conflicts.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Konflik jadwal terdeteksi", fontWeight = FontWeight.SemiBold)
+                    conflicts.forEach { Text(it.title, style = MaterialTheme.typography.bodySmall) }
+                    Text("Buka dan ubah jam salah satu tugas agar tidak bertumpuk.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         Text("Usulan penjadwalan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Tugas tanpa tanggal mulai diurutkan berdasarkan prioritas dan deadline. Tidak ada jadwal yang diubah sebelum disetujui.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -92,11 +128,13 @@ internal fun DailyPlanningScreen(
                 Card(Modifier.fillMaxWidth().clickable { onOpenTask(task) },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val slot = proposedSlots.first { it.task.id == task.id }
                         Text(task.title, fontWeight = FontWeight.SemiBold)
+                        Text("${Instant.ofEpochMilli(slot.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(slot.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))} · ${task.priority} · ${task.estimatedMinutes} menit")
                         Text("${task.priority} · ${task.estimatedMinutes} menit" +
                             (task.deadlineAt?.let { " · Deadline ${Instant.ofEpochMilli(it).atZone(zone).toLocalDate()}" } ?: ""),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Button(onClick = { onApproveSchedule(task) }, modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = { onApproveSchedule(task.copy(startAt = startOfToday, scheduledStartAt = slot.startAt, scheduledEndAt = slot.endAt)) }, modifier = Modifier.fillMaxWidth()) {
                             Text("Setujui jadwal hari ini")
                         }
                     }
@@ -113,7 +151,7 @@ internal fun DailyPlanningScreen(
                 modifier = Modifier.clickable { onOpenTask(task) }
             )
         }
-        Text("Perhitungan memakai tanggal mulai dan estimasi durasi. Tugas tanpa estimasi tidak otomatis diusulkan. Jadwal yang disetujui ditempatkan pada awal hari ini; jam mulai rinci belum dikelola.",
+        Text("Usulan dibuat berurutan mulai pukul 08:00, menghindari blok waktu yang sudah terisi, dan dibatasi sampai pukul 20:00. Semua perubahan hanya disimpan setelah disetujui.",
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
