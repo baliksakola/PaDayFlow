@@ -33,11 +33,11 @@ interface TaskDao {
     @Update
     suspend fun update(task: TaskEntity)
 
-    @Query("UPDATE tasks SET status = :status WHERE id = :taskId")
-    suspend fun updateStatus(taskId: Long, status: String)
+    @Query("UPDATE tasks SET status = 'Selesai' WHERE id = :taskId AND status NOT IN ('Selesai', 'Dibatalkan')")
+    suspend fun completeIfActive(taskId: Long): Int
 
-    @Query("UPDATE tasks SET reminderAt = :reminderAt WHERE id = :taskId")
-    suspend fun updateReminderAt(taskId: Long, reminderAt: Long?)
+    @Query("UPDATE tasks SET reminderAt = :reminderAt WHERE id = :taskId AND status NOT IN ('Selesai', 'Dibatalkan')")
+    suspend fun updateReminderAtIfActive(taskId: Long, reminderAt: Long?): Int
 
     @Query("DELETE FROM tasks WHERE id = :taskId")
     suspend fun delete(taskId: Long)
