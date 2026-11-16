@@ -396,77 +396,46 @@ private fun MyDay(tasks: List<TaskEntity>, modifier: Modifier = Modifier, onComp
 }
 
 @Composable
-private fun TaskList(
-    tasks: List<TaskEntity>,
-    modifier: Modifier = Modifier,
-    title: String = "Semua tugas",
-    emptyTitle: String = "Belum ada tugas",
-    emptyDescription: String = "Tekan tombol + untuk membuat tugas.",
-    onComplete: (TaskEntity) -> Unit,
-    onEdit: (TaskEntity) -> Unit,
-    onDelete: (TaskEntity) -> Unit
-) {
+private fun TaskList(tasks: List<TaskEntity>, modifier: Modifier = Modifier, title: String = "Semua tugas", emptyTitle: String = "Belum ada tugas", emptyDescription: String = "Tekan tombol + untuk membuat tugas.", onComplete: (TaskEntity) -> Unit, onEdit: (TaskEntity) -> Unit, onDelete: (TaskEntity) -> Unit) {
     var statusFilter by remember(title) { mutableStateOf("Semua") }
     var categoryFilter by remember(title) { mutableStateOf("Semua") }
     var priorityFilter by remember(title) { mutableStateOf("Semua") }
     var sortByDeadline by remember(title) { mutableStateOf(false) }
     var filterMenu by remember(title) { mutableStateOf("") }
-
     val categories = listOf("Semua") + tasks.map { it.category }.distinct().sorted()
     val statuses = listOf("Semua", "Belum dikerjakan", "Sedang dikerjakan", "Tertunda", "Menunggu orang lain", "Selesai", "Dibatalkan")
     val priorities = listOf("Semua", "Mendesak", "Tinggi", "Normal", "Rendah")
-    val filtered = tasks.filter {
-        (statusFilter == "Semua" || it.status == statusFilter) &&
-        (categoryFilter == "Semua" || it.category == categoryFilter) &&
-        (priorityFilter == "Semua" || it.priority == priorityFilter)
-    }.let { list ->
-        if (sortByDeadline) list.sortedWith(compareBy<TaskEntity> { it.deadlineAt == null }.thenBy { it.deadlineAt })
-        else list
-    }
-
-    Column(modifier.fillMaxSize().padding(20.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(filtered.size.toString() + " dari " + tasks.size + " tugas", modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val filtered = tasks.filter { (statusFilter == "Semua" || it.status == statusFilter) && (categoryFilter == "Semua" || it.category == categoryFilter) && (priorityFilter == "Semua" || it.priority == priorityFilter) }.let { list -> if (sortByDeadline) list.sortedWith(compareBy<TaskEntity> { it.deadlineAt == null }.thenBy { it.deadlineAt }) else list }
+    val activeCount = filtered.count { it.status != "Selesai" && it.status != "Dibatalkan" }
+    val overdueCount = filtered.count { it.deadlineAt != null && it.deadlineAt < LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() && it.status != "Selesai" && it.status != "Dibatalkan" }
+    Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text("TASK LIBRARY / 04", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.7.sp, fontWeight = FontWeight.Bold); Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black); Text("Tangkap, susun, lalu tuntaskan.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Column(horizontalAlignment = Alignment.End) { Text(filtered.size.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black); Text("TOTAL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp) }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) { Column(Modifier.weight(1f)) { Text(activeCount.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("AKTIF", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp) }; Column(Modifier.weight(1f)) { Text(filtered.count { it.status == "Selesai" }.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("SELESAI", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp) }; Column(Modifier.weight(1f)) { Text(overdueCount.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = if (overdueCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface); Text("TERLAMBAT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp) } }
+        Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box {
-                FilterChip(selected = statusFilter != "Semua", onClick = { filterMenu = "status" },
-                    label = { Text("Status") })
-                DropdownMenu(filterMenu == "status", { filterMenu = "" }) {
-                    statuses.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { statusFilter = value; filterMenu = "" }) }
-                }
-            }
-            Box {
-                FilterChip(selected = categoryFilter != "Semua", onClick = { filterMenu = "category" },
-                    label = { Text("Kategori") })
-                DropdownMenu(filterMenu == "category", { filterMenu = "" }) {
-                    categories.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { categoryFilter = value; filterMenu = "" }) }
-                }
-            }
-            Box {
-                FilterChip(selected = priorityFilter != "Semua", onClick = { filterMenu = "priority" },
-                    label = { Text("Prioritas") })
-                DropdownMenu(filterMenu == "priority", { filterMenu = "" }) {
-                    priorities.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { priorityFilter = value; filterMenu = "" }) }
-                }
-            }
+            Box { FilterChip(selected = statusFilter != "Semua", onClick = { filterMenu = "status" }, label = { Text("Status") }); DropdownMenu(filterMenu == "status", { filterMenu = "" }) { statuses.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { statusFilter = value; filterMenu = "" }) } } }
+            Box { FilterChip(selected = categoryFilter != "Semua", onClick = { filterMenu = "category" }, label = { Text("Kategori") }); DropdownMenu(filterMenu == "category", { filterMenu = "" }) { categories.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { categoryFilter = value; filterMenu = "" }) } } }
+            Box { FilterChip(selected = priorityFilter != "Semua", onClick = { filterMenu = "priority" }, label = { Text("Prioritas") }); DropdownMenu(filterMenu == "priority", { filterMenu = "" }) { priorities.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = { priorityFilter = value; filterMenu = "" }) } } }
         }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { sortByDeadline = !sortByDeadline }) {
-                Icon(Icons.Outlined.Sort, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text(if (sortByDeadline) "Deadline terdekat" else "Urutkan: terbaru")
-            }
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = {
-                statusFilter = "Semua"; categoryFilter = "Semua"; priorityFilter = "Semua"; sortByDeadline = false
-            }) { Text("Reset") }
-        }
-        if (filtered.isEmpty()) EmptyState(if (tasks.isEmpty()) emptyTitle else "Tidak ada hasil",
-            if (tasks.isEmpty()) emptyDescription else "Ubah atau reset filter untuk melihat tugas lain.")
-        else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { TextButton(onClick = { sortByDeadline = !sortByDeadline }) { Icon(Icons.Outlined.Sort, contentDescription = null); Spacer(Modifier.width(5.dp)); Text(if (sortByDeadline) "Deadline terdekat" else "Urutan terbaru") }; Spacer(Modifier.weight(1f)); TextButton(onClick = { statusFilter = "Semua"; categoryFilter = "Semua"; priorityFilter = "Semua"; sortByDeadline = false }) { Text("Reset") } }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        if (filtered.isEmpty()) EmptyState(if (tasks.isEmpty()) emptyTitle else "Tidak ada hasil", if (tasks.isEmpty()) emptyDescription else "Ubah atau reset filter untuk melihat tugas lain.")
+        else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
             items(filtered, key = { it.id }) { task ->
-                TaskCard(task, onClick = { onEdit(task) }, onComplete = { onComplete(task) }, onDelete = { onDelete(task) })
+                Row(Modifier.fillMaxWidth().clickable { onEdit(task) }.padding(vertical = 13.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    Surface(shape = RoundedCornerShape(8.dp), color = when (task.priority) { "Mendesak" -> MaterialTheme.colorScheme.errorContainer; "Tinggi" -> MaterialTheme.colorScheme.secondaryContainer; else -> MaterialTheme.colorScheme.surfaceVariant }) { Text(when (task.priority) { "Mendesak" -> "!!"; "Tinggi" -> "↑"; else -> "·" }, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp), fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface) }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (task.status == "Selesai") MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                        Text("${task.category.uppercase(Locale("id", "ID"))}  /  ${task.status.uppercase(Locale("id", "ID"))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.3.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { task.deadlineAt?.let { Text("DEADLINE ${formatDate(it)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary) }; task.scheduledStartAt?.let { Text(formatTime(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) } }
+                    }
+                    Column(horizontalAlignment = Alignment.End) { IconButton(onClick = { if (task.status != "Selesai" && task.status != "Dibatalkan") onComplete(task) }, enabled = task.status != "Selesai" && task.status != "Dibatalkan") { Icon(if (task.status == "Selesai") Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked, contentDescription = "Tandai selesai", tint = if (task.status == "Selesai") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }; IconButton(onClick = { onDelete(task) }) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "Hapus tugas", tint = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }
