@@ -102,6 +102,27 @@ class TimeBlockPlannerTest {
     }
 
     @Test
+    fun proposalsRespectConfiguredWorkdayRange() {
+        val candidate = TaskEntity(id = 7, title = "Tugas sore", estimatedMinutes = 60)
+        val result = TimeBlockPlanner.plan(
+            date, listOf(candidate), 6, "", zone,
+            LocalTime.of(10, 0), LocalTime.of(16, 0)
+        )
+        assertEquals(at("10:00"), result.proposedSlots.first().startAt)
+        assertEquals(at("11:00"), result.proposedSlots.first().endAt)
+    }
+
+    @Test
+    fun proposalDoesNotExtendPastConfiguredWorkdayEnd() {
+        val candidate = TaskEntity(id = 8, title = "Tugas panjang", estimatedMinutes = 120)
+        val result = TimeBlockPlanner.plan(
+            date, listOf(candidate), 6, "", zone,
+            LocalTime.of(15, 0), LocalTime.of(16, 0)
+        )
+        assertTrue(result.proposedSlots.isEmpty())
+    }
+
+    @Test
     fun capacityIsClampedAndNeverCreatesOverlappingProposals() {
         val tasks = listOf(
             TaskEntity(id = 1, title = "A", estimatedMinutes = 300),
