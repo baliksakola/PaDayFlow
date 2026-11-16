@@ -1,6 +1,8 @@
 package com.padayflow.app
 
 import android.os.Bundle
+import androidx.datastore.preferences.core.edit
+import kotlinx.coroutines.flow.map
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -43,13 +45,25 @@ private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val dao = PaDayFlowDatabase.getInstance(applicationContext).taskDao()
-        setContent { PaDayFlowTheme { Surface(Modifier.fillMaxSize()) { PaDayFlowApp(dao, PaDayFlowDatabase.getInstance(applicationContext).habitDao(), PaDayFlowDatabase.getInstance(applicationContext).noteDao()) } } }
+        val database = PaDayFlowDatabase.getInstance(applicationContext)
+        val settings = applicationContext.dataStore
+        val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
+        setContent {
+            val themeMode by themeFlow.collectAsState(initial = "system")
+            PaDayFlowTheme(themeMode = themeMode) {
+                Surface(Modifier.fillMaxSize()) {
+                    PaDayFlowApp(database.taskDao(), database.habitDao(), database.noteDao(),
+                        themeMode = themeMode, onThemeChange = { selected ->
+                            lifecycleScope.launch { settings.edit { it[THEME_MODE] = selected } }
+                        })
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao) {
+private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -57,6 +71,7 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao) {
     var showHabitTracker by remember { mutableStateOf(false) }
     var showSmartAssistant by remember { mutableStateOf(false) }
     var showAnalytics by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var openedNotesType by remember { mutableStateOf<String?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val habits by habitDao.observeHabits().collectAsState(initial = emptyList())
@@ -95,12 +110,15 @@ private fun PaDayFlowApp(dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao) {
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
+                showSettings -> SettingsScreen(themeMode, Modifier.padding(padding),
+                    onBack = { showSettings = false }, onThemeChange = onThemeChange)
                 else -> MoreMenu(Modifier.padding(padding),
                     onHabitClick = { showHabitTracker = true },
                     onNotesClick = { openedNotesType = "NOTE" },
                     onBrainDumpClick = { openedNotesType = "BRAIN_DUMP" },
                     onSmartAssistantClick = { showSmartAssistant = true },
-                    onAnalyticsClick = { showAnalytics = true })
+                    onAnalyticsClick = { showAnalytics = true },
+                    onSettingsClick = { showSettings = true })
             }
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
         }
@@ -261,7 +279,7 @@ private fun TaskList(
 }
 
 @Composable
-private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit) {
+private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit) {
     Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Lainnya", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Card(onClick = onHabitClick, modifier = Modifier.fillMaxWidth(),
@@ -329,7 +347,62 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null)
             }
         }
+        Card(onClick = onSettingsClick, modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Settings, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Settings", fontWeight = FontWeight.SemiBold)
+                    Text("Tema dan preferensi aplikasi.", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+        }
         Text("Modul lain akan ditambahkan bertahap.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SettingsScreen(themeMode: String, modifier: Modifier = Modifier,
+                           onBack: () -> Unit, onThemeChange: (String) -> Unit) {
+    val options = listOf("system" to "Ikuti sistem", "light" to "Terang", "dark" to "Gelap")
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }
+            Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Tampilan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Pilih tema aplikasi. Perubahan disimpan di perangkat dan diterapkan langsung.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                options.forEach { (value, label) ->
+                    Row(Modifier.fillMaxWidth().clickable { onThemeChange(value) }.padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = themeMode == value, onClick = { onThemeChange(value) })
+                        Spacer(Modifier.width(8.dp))
+                        Text(label)
+                    }
+                }
+            }
+        }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Penyimpanan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Data tugas, habit, dan catatan tersimpan secara lokal menggunakan Room. Backup dan restore akan ditambahkan pada tahap berikutnya.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Tentang PaDayFlow", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Versi 0.1.0 · Aplikasi produktivitas pribadi · Offline-first",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 
