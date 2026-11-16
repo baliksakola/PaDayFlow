@@ -131,8 +131,7 @@ internal fun DailyPlanningScreen(
                         val slot = proposedSlots.first { it.task.id == task.id }
                         Text(task.title, fontWeight = FontWeight.SemiBold)
                         Text("${Instant.ofEpochMilli(slot.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(slot.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))} · ${task.priority} · ${task.estimatedMinutes} menit")
-                        Text("${task.priority} · ${task.estimatedMinutes} menit" +
-                            (task.deadlineAt?.let { " · Deadline ${Instant.ofEpochMilli(it).atZone(zone).toLocalDate()}" } ?: ""),
+                        Text("${task.deadlineAt?.let { "Deadline ${Instant.ofEpochMilli(it).atZone(zone).toLocalDate()}" } ?: "Tanpa deadline"}",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(onClick = { onApproveSchedule(task.copy(startAt = startOfToday, scheduledStartAt = slot.startAt, scheduledEndAt = slot.endAt)) }, modifier = Modifier.fillMaxWidth()) {
                             Text("Setujui jadwal hari ini")
