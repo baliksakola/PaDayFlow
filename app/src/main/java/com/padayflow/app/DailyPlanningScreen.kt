@@ -192,8 +192,10 @@ internal fun DailyPlanningScreen(
                         if (isOverdue) {
                             AssistChip(onClick = { onOpenTask(task) }, label = { Text("Tertunda · perlu dijadwalkan ulang") })
                         }
-                        Text("${Instant.ofEpochMilli(slot.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(slot.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))} · ${task.priority} · ${task.estimatedMinutes} menit")
-                        Text("${task.deadlineAt?.let { "Deadline ${Instant.ofEpochMilli(it).atZone(zone).toLocalDate()}" } ?: "Tanpa deadline"}",
+                        Text("${Instant.ofEpochMilli(slot.startAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))}–${Instant.ofEpochMilli(slot.endAt).atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm"))} · ${task.estimatedMinutes} menit")
+                        Text("${slot.rationale} · ${slot.deadlineNote}",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        Text("${task.deadlineAt?.let { "Tanggal deadline: ${Instant.ofEpochMilli(it).atZone(zone).toLocalDate()}" } ?: "Tidak memiliki tanggal deadline"}",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(onClick = { onApproveSchedule(task.copy(startAt = startOfToday, scheduledStartAt = slot.startAt, scheduledEndAt = slot.endAt)) }, modifier = Modifier.fillMaxWidth()) {
                             Text("Setujui jadwal hari ini")
