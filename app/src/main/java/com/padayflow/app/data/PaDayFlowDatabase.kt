@@ -8,13 +8,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [TaskEntity::class, HabitEntity::class, HabitLogEntity::class],
-    version = 3,
+    entities = [TaskEntity::class, HabitEntity::class, HabitLogEntity::class, NoteEntity::class],
+    version = 4,
     exportSchema = false
 )
 abstract class PaDayFlowDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun habitDao(): HabitDao
+    abstract fun noteDao(): NoteDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -35,6 +36,12 @@ abstract class PaDayFlowDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', type TEXT NOT NULL DEFAULT 'NOTE', createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: PaDayFlowDatabase? = null
 
@@ -44,7 +51,7 @@ abstract class PaDayFlowDatabase : RoomDatabase() {
                     context.applicationContext,
                     PaDayFlowDatabase::class.java,
                     "padayflow.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build().also { INSTANCE = it }
             }
     }
