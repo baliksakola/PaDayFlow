@@ -51,9 +51,11 @@ class MainActivity : ComponentActivity() {
         val settings = applicationContext.dataStore
         val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
+        val protectedTimesFlow = settings.data.map { it[PROTECTED_TIME_BLOCKS] ?: DEFAULT_PROTECTED_TIME_BLOCKS }
         setContent {
             val themeMode by themeFlow.collectAsState(initial = "system")
             val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
+            val protectedTimes by protectedTimesFlow.collectAsState(initial = DEFAULT_PROTECTED_TIME_BLOCKS)
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(),
@@ -61,6 +63,8 @@ class MainActivity : ComponentActivity() {
                             lifecycleScope.launch { settings.edit { it[THEME_MODE] = selected } }
                         }, productiveHours = productiveHours, onProductiveHoursChange = { hours ->
                             lifecycleScope.launch { settings.edit { it[DAILY_PRODUCTIVE_HOURS] = hours } }
+                        }, protectedTimes = protectedTimes, onProtectedTimesChange = { value ->
+                            lifecycleScope.launch { settings.edit { it[PROTECTED_TIME_BLOCKS] = value } }
                         })
                 }
             }
@@ -69,7 +73,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -118,12 +122,12 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
-                showSettings -> SettingsScreen(themeMode, productiveHours, Modifier.padding(padding),
+                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, Modifier.padding(padding),
                     onBack = { showSettings = false }, onThemeChange = onThemeChange,
-                    onProductiveHoursChange = onProductiveHoursChange)
+                    onProductiveHoursChange = onProductiveHoursChange, onProtectedTimesChange = onProtectedTimesChange)
                 showBackupRestore -> BackupRestoreScreen(database, Modifier.padding(padding),
                     onBack = { showBackupRestore = false })
-                showDailyPlanning -> DailyPlanningScreen(tasks, productiveHours, Modifier.padding(padding),
+                showDailyPlanning -> DailyPlanningScreen(tasks, productiveHours, protectedTimes, Modifier.padding(padding),
                     onBack = { showDailyPlanning = false }, onOpenTask = { editing = it },
                     onApproveSchedule = { task ->
                         scope.launch {
@@ -412,10 +416,12 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
 }
 
 @Composable
-private fun SettingsScreen(themeMode: String, productiveHours: Int, modifier: Modifier = Modifier,
+private fun SettingsScreen(themeMode: String, productiveHours: Int, protectedTimes: String, modifier: Modifier = Modifier,
                            onBack: () -> Unit, onThemeChange: (String) -> Unit,
-                           onProductiveHoursChange: (Int) -> Unit) {
+                           onProductiveHoursChange: (Int) -> Unit, onProtectedTimesChange: (String) -> Unit) {
     var hoursInput by remember(productiveHours) { mutableStateOf(productiveHours.toString()) }
+    var protectedInput by remember(protectedTimes) { mutableStateOf(protectedTimes) }
+    var protectedError by remember { mutableStateOf<String?>(null) }
     val options = listOf("system" to "Ikuti sistem", "light" to "Terang", "dark" to "Gelap")
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -458,6 +464,36 @@ private fun SettingsScreen(themeMode: String, productiveHours: Int, modifier: Mo
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Simpan kapasitas") }
                 Text("Rentang yang diizinkan: 1–16 jam. Pengaturan ini belum otomatis menjadwalkan ulang tugas.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Protected Time", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Waktu yang tidak boleh diisi oleh usulan Daily Planning. Satu baris per blok dengan format HH:mm-HH:mm|Nama. Blok melewati tengah malam didukung.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = protectedInput,
+                    onValueChange = { protectedInput = it; protectedError = null },
+                    label = { Text("Daftar waktu terlindungi") },
+                    placeholder = { Text("12:00-13:00|Makan\n18:00-19:00|Keluarga\n22:00-06:00|Tidur") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                protectedError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                Button(onClick = {
+                    val lines = protectedInput.lines().filter { it.isNotBlank() }
+                    val valid = lines.all { line ->
+                        val parts = line.split("|")
+                        val times = parts.firstOrNull()?.split("-") ?: emptyList()
+                        parts.size == 2 && parts[1].isNotBlank() && times.size == 2 &&
+                            runCatching { LocalTime.parse(times[0]); LocalTime.parse(times[1]) }.isSuccess &&
+                            times[0] != times[1]
+                    }
+                    if (valid) { onProtectedTimesChange(protectedInput.trim()); protectedError = null }
+                    else protectedError = "Format tidak valid. Contoh: 12:00-13:00|Makan"
+                }, modifier = Modifier.fillMaxWidth()) { Text("Simpan Protected Time") }
+                Text("Contoh default: makan, waktu keluarga, dan tidur. Hapus baris jika tidak ingin memblokir waktu tersebut.",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
