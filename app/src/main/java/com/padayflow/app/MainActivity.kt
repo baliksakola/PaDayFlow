@@ -1082,11 +1082,13 @@ private fun CalendarScreen(
 
     fun hasTask(date: LocalDate): Boolean = tasks.any { task ->
         task.startAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == date } == true ||
+            task.scheduledStartAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == date } == true ||
             task.deadlineAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == date } == true
     }
 
     val selectedTasks = tasks.filter { task ->
         task.startAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == selectedDate } == true ||
+            task.scheduledStartAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == selectedDate } == true ||
             task.deadlineAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == selectedDate } == true
     }.distinctBy { it.id }
 
@@ -1190,6 +1192,12 @@ private fun TaskCard(
             Text(task.category + " · " + task.priority, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(task.status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            task.scheduledStartAt?.let { start ->
+                val end = task.scheduledEndAt
+                val timeLabel = formatTime(start) + (end?.let { "–" + formatTime(it) } ?: "")
+                Text("Jadwal: $timeLabel", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary)
+            }
             task.deadlineAt?.let {
                 Text("Deadline: " + formatDate(it), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
