@@ -33,6 +33,9 @@ interface TaskDao {
     @Update
     suspend fun update(task: TaskEntity)
 
+    @Query("UPDATE tasks SET status = :status WHERE id = :taskId")
+    suspend fun updateStatus(taskId: Long, status: String)
+
     @Query("UPDATE tasks SET status = 'Selesai' WHERE id = :taskId AND status NOT IN ('Selesai', 'Dibatalkan')")
     suspend fun completeIfActive(taskId: Long): Int
 
