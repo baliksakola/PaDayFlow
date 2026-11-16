@@ -65,8 +65,8 @@ class MainActivity : ComponentActivity() {
         }
         val database = PaDayFlowDatabase.getInstance(applicationContext)
         lifecycleScope.launch(Dispatchers.IO) {
-            val pendingReminders = database.taskDao().getTasksWithPendingReminders(System.currentTimeMillis())
-            ReminderScheduler.reconcile(applicationContext, pendingReminders)
+            val allTasks = database.taskDao().getAllForBackup()
+            ReminderScheduler.reconcile(applicationContext, allTasks)
         }
         val settings = applicationContext.dataStore
         val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
