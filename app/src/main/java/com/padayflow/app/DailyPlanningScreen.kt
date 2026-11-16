@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.padayflow.app.data.TaskEntity
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -24,6 +25,8 @@ internal fun DailyPlanningScreen(
     tasks: List<TaskEntity>,
     productiveHours: Int,
     protectedTimes: String,
+    workdayStart: String,
+    workdayEnd: String,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onOpenTask: (TaskEntity) -> Unit,
@@ -32,7 +35,9 @@ internal fun DailyPlanningScreen(
     val today = LocalDate.now()
     val zone = ZoneId.systemDefault()
     val startOfToday = today.atStartOfDay(zone).toInstant().toEpochMilli()
-    val plan = TimeBlockPlanner.plan(today, tasks, productiveHours, protectedTimes, zone)
+    val startTime = runCatching { LocalTime.parse(workdayStart) }.getOrDefault(LocalTime.of(8, 0))
+    val endTime = runCatching { LocalTime.parse(workdayEnd) }.getOrDefault(LocalTime.of(20, 0))
+    val plan = TimeBlockPlanner.plan(today, tasks, productiveHours, protectedTimes, zone, startTime, endTime)
     val todayTasks = plan.todayTasks
     val plannedMinutes = plan.plannedMinutes
     val capacityMinutes = plan.capacityMinutes
@@ -124,7 +129,7 @@ internal fun DailyPlanningScreen(
                 modifier = Modifier.clickable { onOpenTask(task) }
             )
         }
-        Text("Usulan dibuat mulai pukul 08:00, menghindari jadwal tugas dan Protected Time, serta dibatasi sampai pukul 20:00. Semua perubahan hanya disimpan setelah disetujui.",
+        Text("Usulan dibuat antara pukul ${workdayStart}–${workdayEnd}, menghindari jadwal tugas dan Protected Time. Semua perubahan hanya disimpan setelah disetujui.",
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
