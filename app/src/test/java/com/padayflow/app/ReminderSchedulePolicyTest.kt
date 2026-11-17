@@ -91,4 +91,22 @@ class ReminderSchedulePolicyTest {
         )
     }
 
+    @Test
+    fun doesNotTreatSameTriggerAsReplacement() {
+        val trigger = now + 60_000L
+        val task = TaskEntity(id = 12, title = "Tidak berubah", reminderAt = trigger)
+        assertFalse(ReminderSchedulePolicy.replacementTrigger(task, trigger, now) != null)
+    }
+
+    @Test
+    fun replacementMustBeFutureAndDifferentFromOldTrigger() {
+        val task = TaskEntity(id = 13, title = "Diubah", reminderAt = now + 90_000L)
+        assertTrue(
+            ReminderSchedulePolicy.replacementTrigger(task, now + 30_000L, now) == now + 90_000L
+        )
+        assertFalse(
+            ReminderSchedulePolicy.replacementTrigger(task, now + 90_000L, now) != null
+        )
+    }
+
 }
