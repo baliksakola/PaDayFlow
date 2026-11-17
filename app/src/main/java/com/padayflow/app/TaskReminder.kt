@@ -37,6 +37,11 @@ internal object ReminderSchedulePolicy {
 
     fun matchesCurrentReminder(task: TaskEntity, expectedTriggerAt: Long): Boolean =
         expectedTriggerAt > 0L && isActive(task) && task.reminderAt == expectedTriggerAt
+
+    fun replacementTrigger(task: TaskEntity, expectedTriggerAt: Long, now: Long): Long? =
+        task.reminderAt?.takeIf {
+            isActive(task) && it > now && it != expectedTriggerAt
+        }
 }
 
 internal object ReminderScheduler {
@@ -83,11 +88,13 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
             return Result.success()
         }
         if (!ReminderSchedulePolicy.matchesCurrentReminder(task, expectedTriggerAt)) {
-            val currentTrigger = task.reminderAt
-            if (currentTrigger != null && currentTrigger > System.currentTimeMillis()) {
+            val replacementTrigger = ReminderSchedulePolicy.replacementTrigger(
+                task, expectedTriggerAt, System.currentTimeMillis()
+            )
+            if (replacementTrigger != null) {
                 // A newer edit may have replaced this work while it was starting.
                 // Restore the latest reminder instead of silently dropping it.
-                ReminderScheduler.schedule(applicationContext, taskId, task.title, currentTrigger)
+                ReminderScheduler.schedule(applicationContext, taskId, task.title, replacementTrigger)
             } else {
                 NotificationManagerCompat.from(applicationContext).cancel(taskId.toInt())
             }
