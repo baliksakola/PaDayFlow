@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
         }
         val settings = applicationContext.dataStore
         val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
-        val categoriesFlow = settings.data.map { (it[TASK_CATEGORIES] ?: DEFAULT_TASK_CATEGORIES).split("\\n").map(String::trim).filter(String::isNotBlank) }
+        val categoriesFlow = settings.data.map { (it[TASK_CATEGORIES] ?: DEFAULT_TASK_CATEGORIES).split("\n").map(String::trim).filter(String::isNotBlank) }
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
         val protectedTimesFlow = settings.data.map { it[PROTECTED_TIME_BLOCKS] ?: DEFAULT_PROTECTED_TIME_BLOCKS }
         val snoozeMinutesFlow = settings.data.map { it[REMINDER_SNOOZE_MINUTES] ?: 60 }
@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
         val workdayEndFlow = settings.data.map { it[WORKDAY_END] ?: DEFAULT_WORKDAY_END }
         setContent {
             val themeMode by themeFlow.collectAsState(initial = "system")
-            val categories by categoriesFlow.collectAsState(initial = DEFAULT_TASK_CATEGORIES.split("\\n"))
+            val categories by categoriesFlow.collectAsState(initial = DEFAULT_TASK_CATEGORIES.split("\n"))
             val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
             val protectedTimes by protectedTimesFlow.collectAsState(initial = DEFAULT_PROTECTED_TIME_BLOCKS)
             val snoozeMinutes by snoozeMinutesFlow.collectAsState(initial = 60)
@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
             val workdayEnd by workdayEndFlow.collectAsState(initial = DEFAULT_WORKDAY_END)
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
-                    PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(), categories = categories, onCategoriesChange = { value -> lifecycleScope.launch { settings.edit { it[TASK_CATEGORIES] = value.joinToString("\\n") } } },
+                    PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(), categories = categories, onCategoriesChange = { value -> lifecycleScope.launch { settings.edit { it[TASK_CATEGORIES] = value.joinToString("\n") } } },
                         initialTaskId = intent.getLongExtra("openTaskId", -1L),
                         themeMode = themeMode, onThemeChange = { selected ->
                             lifecycleScope.launch { settings.edit { it[THEME_MODE] = selected } }
