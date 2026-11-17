@@ -7,6 +7,8 @@ import androidx.datastore.preferences.preferencesDataStore
 
 internal val Context.dataStore by preferencesDataStore(name = "padayflow_settings")
 internal val THEME_MODE = stringPreferencesKey("theme_mode")
+internal val TASK_CATEGORIES = stringPreferencesKey("task_categories")
+internal const val DEFAULT_TASK_CATEGORIES = "Sekolah – Sarpras\\nSekolah – Administrasi\\nPekerjaan Sampingan\\nPribadi\\nKeluarga"
 
 internal val DAILY_PRODUCTIVE_HOURS = intPreferencesKey("daily_productive_hours")
 
