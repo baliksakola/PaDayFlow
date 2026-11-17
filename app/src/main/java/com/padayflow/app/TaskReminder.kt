@@ -163,15 +163,17 @@ class ReminderActionReceiver : BroadcastReceiver() {
                                 Triple(true, nextTask, nextId)
                             }
                         }
-                        val nextTask = completion.second
-                        val nextId = completion.third
-                        if (nextTask != null && nextId != null) {
-                            nextTask.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let {
-                                ReminderScheduler.schedule(context, nextId, nextTask.title, it)
+                        if (completion.first) {
+                            val nextTask = completion.second
+                            val nextId = completion.third
+                            if (nextTask != null && nextId != null) {
+                                nextTask.reminderAt?.takeIf { it > System.currentTimeMillis() }?.let {
+                                    ReminderScheduler.schedule(context, nextId, nextTask.title, it)
+                                }
                             }
+                            NotificationManagerCompat.from(context).cancel(taskId.toInt())
+                            ReminderScheduler.cancel(context, taskId)
                         }
-                        NotificationManagerCompat.from(context).cancel(taskId.toInt())
-                        ReminderScheduler.cancel(context, taskId)
                     } finally {
                         pending.finish()
                     }
