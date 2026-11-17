@@ -29,9 +29,14 @@ private const val ACTION_COMPLETE = "com.padayflow.app.REMINDER_COMPLETE"
 private const val ACTION_SNOOZE = "com.padayflow.app.REMINDER_SNOOZE"
 
 internal object ReminderSchedulePolicy {
+    fun isActive(task: TaskEntity): Boolean =
+        task.status != "Selesai" && task.status != "Dibatalkan"
+
     fun shouldSchedule(task: TaskEntity, now: Long): Boolean =
-        task.status != "Selesai" && task.status != "Dibatalkan" &&
-            task.reminderAt?.let { it > now } == true
+        isActive(task) && task.reminderAt?.let { it > now } == true
+
+    fun matchesCurrentReminder(task: TaskEntity, expectedTriggerAt: Long): Boolean =
+        expectedTriggerAt > 0L && isActive(task) && task.reminderAt == expectedTriggerAt
 }
 
 internal object ReminderScheduler {
@@ -73,8 +78,7 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
         } catch (_: Exception) {
             return Result.retry()
         }
-        if (task == null || task.status == "Selesai" || task.status == "Dibatalkan" ||
-            task.reminderAt != expectedTriggerAt) {
+        if (task == null || !ReminderSchedulePolicy.matchesCurrentReminder(task, expectedTriggerAt)) {
             NotificationManagerCompat.from(applicationContext).cancel(taskId.toInt())
             return Result.success()
         }
@@ -154,7 +158,8 @@ class ReminderActionReceiver : BroadcastReceiver() {
                         val dao = database.taskDao()
                         val completion = database.withTransaction {
                             val currentTask = dao.getTaskById(taskId)
-                            if (currentTask == null || currentTask.reminderAt != expectedTriggerAt ||
+                            if (currentTask == null ||
+                                !ReminderSchedulePolicy.matchesCurrentReminder(currentTask, expectedTriggerAt) ||
                                 dao.completeIfReminderMatches(taskId, expectedTriggerAt) != 1) {
                                 Triple(false, null, null)
                             } else {
