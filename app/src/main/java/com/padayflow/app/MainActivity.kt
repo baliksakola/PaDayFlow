@@ -169,10 +169,12 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
     var showSettings by remember { mutableStateOf(false) }
     var showBackupRestore by remember { mutableStateOf(false) }
     var showDailyPlanning by remember { mutableStateOf(false) }
+    var showGlobalSearch by remember { mutableStateOf(false) }
     var openedNotesType by remember { mutableStateOf<String?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
     val habits by habitDao.observeHabits().collectAsState(initial = emptyList())
     val habitLogs by habitDao.observeLogs().collectAsState(initial = emptyList())
+    val allNotes by noteDao.observeAllNotes().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
     var handledNotificationTaskId by remember { mutableLongStateOf(-1L) }
@@ -190,6 +192,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
             showSettings -> showSettings = false
             showBackupRestore -> showBackupRestore = false
             showDailyPlanning -> showDailyPlanning = false
+            showGlobalSearch -> showGlobalSearch = false
             tab != 0 -> tab = 0
             else -> {
                 val now = SystemClock.elapsedRealtime()
@@ -228,7 +231,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
         }
     ) { padding ->
         when (tab) {
-            0 -> Dashboard(tasks, Modifier.padding(padding), onOpenTask = { editing = it })
+            0 -> Dashboard(tasks, Modifier.padding(padding), onOpenTask = { editing = it }, onSearchClick = { showGlobalSearch = true })
             1 -> MyDay(tasks, Modifier.padding(padding),
                 onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, database, context) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
@@ -237,6 +240,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                 onEdit = { editing = it }, onDelete = { deleting = it })
             3 -> CalendarScreen(tasks, Modifier.padding(padding), onEdit = { editing = it })
             4 -> when {
+                showGlobalSearch -> GlobalSearchScreen(tasks, allNotes, Modifier.padding(padding), onBack = { showGlobalSearch = false }, onOpenTask = { showGlobalSearch = false; editing = it }, onOpenNote = { note -> showGlobalSearch = false; openedNotesType = note.type })
                 openedNotesType != null -> NotesScreen(noteDao, openedNotesType!!, Modifier.padding(padding),
                     onBack = { openedNotesType = null })
                 showHabitTracker -> HabitTrackerScreen(habitDao, Modifier.padding(padding), onBack = { showHabitTracker = false })
@@ -313,7 +317,31 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
 }
 
 @Composable
-private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, onOpenTask: (TaskEntity) -> Unit) {
+private fun GlobalSearchScreen(tasks: List<TaskEntity>, notes: List<NoteEntity>, modifier: Modifier = Modifier, onBack: () -> Unit, onOpenTask: (TaskEntity) -> Unit, onOpenNote: (NoteEntity) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val normalized = query.trim().lowercase(Locale("id", "ID"))
+    val taskResults = remember(tasks, normalized) { if (normalized.isBlank()) emptyList() else tasks.filter { task -> listOf(task.title, task.description, task.category, task.priority, task.status, task.notes).any { it.lowercase(Locale("id", "ID")).contains(normalized) } } }
+    val noteResults = remember(notes, normalized) { if (normalized.isBlank()) emptyList() else notes.filter { note -> note.title.lowercase(Locale("id", "ID")).contains(normalized) || note.content.lowercase(Locale("id", "ID")).contains(normalized) } }
+    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }; Text("Pencarian", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
+        OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) }, trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Outlined.Close, contentDescription = "Hapus pencarian") } }, placeholder = { Text("Cari tugas, kategori, atau catatan...") })
+        if (normalized.isBlank()) EmptyState("Cari apa yang Anda butuhkan", "Masukkan judul, isi catatan, kategori, status, atau prioritas.")
+        else if (taskResults.isEmpty() && noteResults.isEmpty()) EmptyState("Tidak ada hasil", "Coba kata kunci lain.")
+        else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (taskResults.isNotEmpty()) {
+                item { Heading("Tugas (" + taskResults.size + ")", "Hasil dari judul, deskripsi, kategori, status, prioritas, dan catatan tugas.") }
+                items(taskResults, key = { "task-" + it.id }) { task -> Card(Modifier.fillMaxWidth().clickable { onOpenTask(task) }) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(task.title, fontWeight = FontWeight.Bold); Text(task.category + " · " + task.status + " · " + task.priority, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant); if (task.description.isNotBlank()) Text(task.description, maxLines = 2, style = MaterialTheme.typography.bodySmall) } } }
+            }
+            if (noteResults.isNotEmpty()) {
+                item { Heading("Catatan (" + noteResults.size + ")", "Hasil dari judul dan isi catatan.") }
+                items(noteResults, key = { "note-" + it.id }) { note -> Card(Modifier.fillMaxWidth().clickable { onOpenNote(note) }) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(note.title, fontWeight = FontWeight.Bold); Text(if (note.type == "BRAIN_DUMP") "Brain Dump" else "Catatan", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); if (note.content.isNotBlank()) Text(note.content, maxLines = 3, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, onOpenTask: (TaskEntity) -> Unit, onSearchClick: () -> Unit) {
     val today = LocalDate.now()
     val zone = ZoneId.systemDefault()
     val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -332,6 +360,7 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
                 Text("PA / DAYFLOW", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = MaterialTheme.colorScheme.primary)
                 Text("PERSONAL OPERATING SYSTEM", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            IconButton(onClick = onSearchClick) { Icon(Icons.Outlined.Search, contentDescription = "Cari tugas dan catatan") }
             Text("●  OFFLINE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
