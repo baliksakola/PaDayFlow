@@ -186,8 +186,8 @@ class ReminderActionReceiver : BroadcastReceiver() {
                             .updateReminderAtIfActive(taskId, expectedTriggerAt, snoozedUntil)
                         if (updated == 1) {
                             ReminderScheduler.schedule(context, taskId, title, snoozedUntil)
+                            NotificationManagerCompat.from(context).cancel(taskId.toInt())
                         }
-                        NotificationManagerCompat.from(context).cancel(taskId.toInt())
                     } finally {
                         pending.finish()
                     }
