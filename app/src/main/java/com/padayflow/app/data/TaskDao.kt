@@ -39,6 +39,9 @@ interface TaskDao {
     @Query("UPDATE tasks SET status = 'Selesai' WHERE id = :taskId AND status NOT IN ('Selesai', 'Dibatalkan')")
     suspend fun completeIfActive(taskId: Long): Int
 
+    @Query("UPDATE tasks SET status = 'Selesai' WHERE id = :taskId AND reminderAt = :expectedReminderAt AND status NOT IN ('Selesai', 'Dibatalkan')")
+    suspend fun completeIfReminderMatches(taskId: Long, expectedReminderAt: Long): Int
+
     @Query("UPDATE tasks SET reminderAt = :newReminderAt WHERE id = :taskId AND reminderAt = :expectedReminderAt AND status NOT IN ('Selesai', 'Dibatalkan')")
     suspend fun updateReminderAtIfActive(taskId: Long, expectedReminderAt: Long, newReminderAt: Long): Int
 
