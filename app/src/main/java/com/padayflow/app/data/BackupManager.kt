@@ -24,7 +24,9 @@ object BackupManager {
     private const val FORMAT = "padayflow-backup"
     private const val VERSION = 3
 
-    suspend fun createBackup(database: PaDayFlowDatabase): String {
+    suspend fun createBackup(database: PaDayFlowDatabase): String = database.withTransaction {
+        // Read every collection from one Room snapshot so concurrent edits cannot
+        // produce a backup containing data from different points in time.
         val tasks = database.taskDao().getAllForBackup()
         val habits = database.habitDao().getAllHabitsForBackup()
         val logs = database.habitDao().getAllLogsForBackup()
@@ -62,7 +64,7 @@ object BackupManager {
                     .put("content", item.content).put("type", item.type)
                     .put("createdAt", item.createdAt).put("updatedAt", item.updatedAt)) }
             })
-        return root.toString(2)
+        root.toString(2)
     }
 
     fun parseBackup(json: String): ParsedBackup {
