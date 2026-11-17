@@ -87,9 +87,13 @@ class MainActivity : ComponentActivity() {
             val pinHash by pinHashFlow.collectAsState(initial = "")
             val pinSalt by pinSaltFlow.collectAsState(initial = "")
             val appLockEnabled by appLockEnabledFlow.collectAsState(initial = false)
+            var securityInitialized by remember { mutableStateOf(false) }
             LaunchedEffect(appLockEnabled, pinHash) {
                 lockEnabledCached = appLockEnabled && pinHash.isNotBlank()
-                if (lockEnabledCached) appLockedState.value = true
+                if (!securityInitialized) {
+                    appLockedState.value = lockEnabledCached
+                    securityInitialized = true
+                }
             }
             val categories by categoriesFlow.collectAsState(initial = DEFAULT_TASK_CATEGORIES.split("\n"))
             val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
@@ -126,6 +130,10 @@ class MainActivity : ComponentActivity() {
 private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, categories: List<String>, onCategoriesChange: (List<String>) -> Unit, pinHash: String, pinSalt: String, appLockEnabled: Boolean, appLocked: Boolean, onUnlock: () -> Unit, onSetPin: (String) -> Unit, onRemovePin: () -> Unit, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
     val activityContext = LocalContext.current
     val context = activityContext.applicationContext
+    if (appLockEnabled && appLocked && pinHash.isNotBlank()) {
+        AppLockScreen(expectedHash = pinHash, salt = pinSalt, onUnlock = onUnlock)
+        return
+    }
     var tab by remember { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<TaskEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
