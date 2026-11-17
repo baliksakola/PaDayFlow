@@ -57,7 +57,13 @@ private val tabs = listOf("Beranda", "My Day", "Tugas", "Kalender", "Lainnya")
 private val tabIcons = listOf(Icons.Outlined.Home, Icons.Outlined.Today, Icons.Outlined.TaskAlt, Icons.Outlined.CalendarMonth, Icons.Outlined.MoreHoriz)
 private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
-class MainActivity : ComponentActivity() {\n    private var lockEnabledCached = false\n    private val appLockedState = mutableStateOf(false)\n\n    override fun onStop() {\n        if (lockEnabledCached) appLockedState.value = true\n        super.onStop()\n    }
+class MainActivity : ComponentActivity() {
+    private var lockEnabledCached = false
+    private val appLockedState = mutableStateOf(false)
+\n    override fun onStop() {
+        if (lockEnabledCached) appLockedState.value = true
+        super.onStop()
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val database = PaDayFlowDatabase.getInstance(applicationContext)
@@ -66,7 +72,10 @@ class MainActivity : ComponentActivity() {\n    private var lockEnabledCached = 
             ReminderScheduler.reconcile(applicationContext, allTasks)
         }
         val settings = applicationContext.dataStore
-        val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }\n        val pinHashFlow = settings.data.map { it[APP_PIN_HASH] ?: "" }\n        val pinSaltFlow = settings.data.map { it[APP_PIN_SALT] ?: "" }\n        val appLockEnabledFlow = settings.data.map { it[APP_LOCK_ENABLED] ?: false }
+        val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
+        val pinHashFlow = settings.data.map { it[APP_PIN_HASH] ?: "" }
+        val pinSaltFlow = settings.data.map { it[APP_PIN_SALT] ?: "" }
+        val appLockEnabledFlow = settings.data.map { it[APP_LOCK_ENABLED] ?: false }
         val categoriesFlow = settings.data.map { (it[TASK_CATEGORIES] ?: DEFAULT_TASK_CATEGORIES).split("\n").map(String::trim).filter(String::isNotBlank) }
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
         val protectedTimesFlow = settings.data.map { it[PROTECTED_TIME_BLOCKS] ?: DEFAULT_PROTECTED_TIME_BLOCKS }
@@ -74,7 +83,14 @@ class MainActivity : ComponentActivity() {\n    private var lockEnabledCached = 
         val workdayStartFlow = settings.data.map { it[WORKDAY_START] ?: DEFAULT_WORKDAY_START }
         val workdayEndFlow = settings.data.map { it[WORKDAY_END] ?: DEFAULT_WORKDAY_END }
         setContent {
-            val themeMode by themeFlow.collectAsState(initial = "system")\n            val pinHash by pinHashFlow.collectAsState(initial = "")\n            val pinSalt by pinSaltFlow.collectAsState(initial = "")\n            val appLockEnabled by appLockEnabledFlow.collectAsState(initial = false)\n            LaunchedEffect(appLockEnabled, pinHash) {\n                lockEnabledCached = appLockEnabled && pinHash.isNotBlank()\n                if (lockEnabledCached) appLockedState.value = true\n            }
+            val themeMode by themeFlow.collectAsState(initial = "system")
+            val pinHash by pinHashFlow.collectAsState(initial = "")
+            val pinSalt by pinSaltFlow.collectAsState(initial = "")
+            val appLockEnabled by appLockEnabledFlow.collectAsState(initial = false)
+            LaunchedEffect(appLockEnabled, pinHash) {
+                lockEnabledCached = appLockEnabled && pinHash.isNotBlank()
+                if (lockEnabledCached) appLockedState.value = true
+            }
             val categories by categoriesFlow.collectAsState(initial = DEFAULT_TASK_CATEGORIES.split("\n"))
             val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
             val protectedTimes by protectedTimesFlow.collectAsState(initial = DEFAULT_PROTECTED_TIME_BLOCKS)
@@ -84,6 +100,9 @@ class MainActivity : ComponentActivity() {\n    private var lockEnabledCached = 
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(), categories = categories, onCategoriesChange = { value -> lifecycleScope.launch { settings.edit { it[TASK_CATEGORIES] = value.joinToString("\n") } } },
+                        pinHash = pinHash, pinSalt = pinSalt, appLockEnabled = appLockEnabled, appLocked = appLockedState.value, onUnlock = { appLockedState.value = false },
+                        onSetPin = { pin -> val salt = createPinSalt(); val hash = hashAppPin(pin, salt); lifecycleScope.launch { settings.edit { it[APP_PIN_SALT] = salt; it[APP_PIN_HASH] = hash; it[APP_LOCK_ENABLED] = true } } },
+                        onRemovePin = { lifecycleScope.launch { settings.edit { it.remove(APP_PIN_HASH); it.remove(APP_PIN_SALT); it[APP_LOCK_ENABLED] = false } }; appLockedState.value = false },
                         initialTaskId = intent.getLongExtra("openTaskId", -1L),
                         themeMode = themeMode, onThemeChange = { selected ->
                             lifecycleScope.launch { settings.edit { it[THEME_MODE] = selected } }
@@ -496,6 +515,9 @@ private fun SettingsScreen(
     workdayStart: String,
     workdayEnd: String,
     categories: List<String>,
+    pinConfigured: Boolean,
+    onSetPin: (String) -> Unit,
+    onRemovePin: () -> Unit,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onThemeChange: (String) -> Unit,
