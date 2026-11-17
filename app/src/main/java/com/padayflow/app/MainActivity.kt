@@ -512,6 +512,8 @@ private fun SettingsScreen(
     val protectedEntries = remember(protectedTimes) { mutableStateListOf<ProtectedTimeEntry>().apply { addAll(parseProtectedTimeEntries(protectedTimes)) } }
     var protectedError by remember { mutableStateOf<String?>(null) }
     var selectedSnooze by remember(snoozeMinutes) { mutableIntStateOf(snoozeMinutes) }
+    var categoryInput by remember { mutableStateOf("") }
+    var categoryError by remember { mutableStateOf<String?>(null) }
     val options = listOf("system" to "Ikuti sistem", "light" to "Terang", "dark" to "Gelap")
 
     Column(
@@ -747,6 +749,46 @@ private fun SettingsScreen(
                 ) { Text("Simpan Protected Time") }
                 Text("Contoh: makan, ibadah, istirahat, dan waktu keluarga. Jam selesai lebih awal dari jam mulai berarti blok berlanjut ke hari berikutnya.",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Kategori tugas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Kelola kategori untuk mengelompokkan pekerjaan sekolah, urusan pribadi, dan aktivitas lain. Kategori yang sudah dipakai tugas tidak menghapus data tugas ketika dihapus dari daftar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                categories.forEach { item ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(item, modifier = Modifier.weight(1f))
+                        IconButton(onClick = {
+                            if (categories.size > 1) onCategoriesChange(categories - item)
+                            else categoryError = "Minimal harus ada satu kategori."
+                        }) { Icon(Icons.Outlined.DeleteOutline, contentDescription = "Hapus kategori $item") }
+                    }
+                }
+                OutlinedTextField(
+                    value = categoryInput,
+                    onValueChange = { categoryInput = it; categoryError = null },
+                    label = { Text("Nama kategori baru") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                categoryError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                Button(
+                    onClick = {
+                        val name = categoryInput.trim()
+                        when {
+                            name.isBlank() -> categoryError = "Nama kategori tidak boleh kosong."
+                            name.contains("\n") -> categoryError = "Nama kategori tidak boleh berisi baris baru."
+                            categories.any { it.equals(name, ignoreCase = true) } -> categoryError = "Kategori sudah tersedia."
+                            else -> { onCategoriesChange(categories + name); categoryInput = ""; categoryError = null }
+                        }
+                    },
+                    enabled = categoryInput.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Tambah kategori") }
             }
         }
 
