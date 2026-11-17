@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog\nimport androidx.compose.material3.Card\nimport androidx.compose.material3.CardDefaults\nimport androidx.compose.material3.TextButton\nimport androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -111,5 +111,75 @@ internal fun AppLockScreen(
             enabled = pin.length == 6 && !checking,
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (checking) "Memeriksa..." else "Buka aplikasi") }
+    }
+}
+
+
+@Composable
+internal fun AppSecuritySettingsCard(
+    pinConfigured: Boolean,
+    onSetPin: (String) -> Unit,
+    onRemovePin: () -> Unit
+) {
+    var showSetup by remember { mutableStateOf(false) }
+    var firstPin by remember { mutableStateOf("") }
+    var confirmPin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Keamanan aplikasi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (pinConfigured) "Kunci PIN aktif. Aplikasi akan meminta PIN saat dibuka kembali setelah ditinggalkan."
+                else "Kunci aplikasi belum aktif. Atur PIN 6 digit untuk melindungi tugas, catatan, dan data pribadi.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Button(onClick = { showSetup = true; firstPin = ""; confirmPin = ""; error = null }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (pinConfigured) "Ubah PIN" else "Atur PIN")
+            }
+            if (pinConfigured) {
+                TextButton(onClick = onRemovePin, modifier = Modifier.fillMaxWidth()) { Text("Nonaktifkan kunci aplikasi") }
+            }
+        }
+    }
+
+    if (showSetup) {
+        AlertDialog(
+            onDismissRequest = { showSetup = false },
+            title = { Text(if (pinConfigured) "Ubah PIN aplikasi" else "Atur PIN aplikasi") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Gunakan PIN 6 digit. PIN disimpan sebagai hash dengan salt, bukan sebagai teks biasa.")
+                    OutlinedTextField(
+                        value = firstPin,
+                        onValueChange = { value -> if (value.length <= 6 && value.all(Char::isDigit)) { firstPin = value; error = null } },
+                        label = { Text("PIN baru") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+                    OutlinedTextField(
+                        value = confirmPin,
+                        onValueChange = { value -> if (value.length <= 6 && value.all(Char::isDigit)) { confirmPin = value; error = null } },
+                        label = { Text("Konfirmasi PIN") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    when {
+                        firstPin.length != 6 -> error = "PIN harus terdiri dari 6 digit."
+                        firstPin != confirmPin -> error = "Konfirmasi PIN tidak sama."
+                        else -> { onSetPin(firstPin); showSetup = false }
+                    }
+                }) { Text("Simpan PIN") }
+            },
+            dismissButton = { TextButton(onClick = { showSetup = false }) { Text("Batal") } }
+        )
     }
 }
