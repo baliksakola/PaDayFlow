@@ -620,8 +620,9 @@ private fun SettingsScreen(
             notificationPermissionRefresh++
             notificationPermissionError = if (granted) null else "Izin tidak diberikan. Anda dapat mengaktifkannya melalui Pengaturan Android."
         }
-        val notificationPermissionGranted = Build.VERSION.SDK_INT < 33 ||
-            ContextCompat.checkSelfPermission(notificationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val permissionRefresh = notificationPermissionRefresh
+        val notificationPermissionGranted = permissionRefresh >= 0 && (Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(notificationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
         Card(
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
