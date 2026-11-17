@@ -78,8 +78,19 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
         } catch (_: Exception) {
             return Result.retry()
         }
-        if (task == null || !ReminderSchedulePolicy.matchesCurrentReminder(task, expectedTriggerAt)) {
+        if (task == null || !ReminderSchedulePolicy.isActive(task)) {
             NotificationManagerCompat.from(applicationContext).cancel(taskId.toInt())
+            return Result.success()
+        }
+        if (!ReminderSchedulePolicy.matchesCurrentReminder(task, expectedTriggerAt)) {
+            val currentTrigger = task.reminderAt
+            if (currentTrigger != null && currentTrigger > System.currentTimeMillis()) {
+                // A newer edit may have replaced this work while it was starting.
+                // Restore the latest reminder instead of silently dropping it.
+                ReminderScheduler.schedule(applicationContext, taskId, task.title, currentTrigger)
+            } else {
+                NotificationManagerCompat.from(applicationContext).cancel(taskId.toInt())
+            }
             return Result.success()
         }
         if (expectedTriggerAt > System.currentTimeMillis()) return Result.retry()
