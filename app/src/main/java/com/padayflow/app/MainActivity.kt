@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
         }
         val settings = applicationContext.dataStore
         val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
+        val categoriesFlow = settings.data.map { (it[TASK_CATEGORIES] ?: DEFAULT_TASK_CATEGORIES).split("\\n").map(String::trim).filter(String::isNotBlank) }
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
         val protectedTimesFlow = settings.data.map { it[PROTECTED_TIME_BLOCKS] ?: DEFAULT_PROTECTED_TIME_BLOCKS }
         val snoozeMinutesFlow = settings.data.map { it[REMINDER_SNOOZE_MINUTES] ?: 60 }
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
         val workdayEndFlow = settings.data.map { it[WORKDAY_END] ?: DEFAULT_WORKDAY_END }
         setContent {
             val themeMode by themeFlow.collectAsState(initial = "system")
+            val categories by categoriesFlow.collectAsState(initial = DEFAULT_TASK_CATEGORIES.split("\\n"))
             val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
             val protectedTimes by protectedTimesFlow.collectAsState(initial = DEFAULT_PROTECTED_TIME_BLOCKS)
             val snoozeMinutes by snoozeMinutesFlow.collectAsState(initial = 60)
@@ -81,7 +83,7 @@ class MainActivity : ComponentActivity() {
             val workdayEnd by workdayEndFlow.collectAsState(initial = DEFAULT_WORKDAY_END)
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
-                    PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(),
+                    PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(), categories = categories, onCategoriesChange = { value -> lifecycleScope.launch { settings.edit { it[TASK_CATEGORIES] = value.joinToString("\\n") } } },
                         initialTaskId = intent.getLongExtra("openTaskId", -1L),
                         themeMode = themeMode, onThemeChange = { selected ->
                             lifecycleScope.launch { settings.edit { it[THEME_MODE] = selected } }
@@ -102,7 +104,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, categories: List<String>, onCategoriesChange: (List<String>) -> Unit, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
     val activityContext = LocalContext.current
     val context = activityContext.applicationContext
     var tab by remember { mutableIntStateOf(0) }
@@ -190,10 +192,10 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
-                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, workdayStart, workdayEnd, Modifier.padding(padding),
+                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, workdayStart, workdayEnd, categories, Modifier.padding(padding),
                     onBack = { showSettings = false }, onThemeChange = onThemeChange,
                     onProductiveHoursChange = onProductiveHoursChange, onProtectedTimesChange = onProtectedTimesChange,
-                    onSnoozeMinutesChange = onSnoozeMinutesChange, onWorkdayChange = onWorkdayChange)
+                    onSnoozeMinutesChange = onSnoozeMinutesChange, onWorkdayChange = onWorkdayChange, onCategoriesChange = onCategoriesChange)
                 showBackupRestore -> BackupRestoreScreen(database, Modifier.padding(padding),
                     onBack = { showBackupRestore = false })
                 showDailyPlanning -> DailyPlanningScreen(tasks, productiveHours, protectedTimes, workdayStart, workdayEnd, Modifier.padding(padding),
@@ -217,7 +219,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
         }
     }
 
-    if (adding) TaskEditorDialog(task = null, onDismiss = { adding = false }, onSave = { task ->
+    if (adding) TaskEditorDialog(task = null, categories = categories, onDismiss = { adding = false }, onSave = { task ->
         scope.launch {
             withContext(Dispatchers.IO) {
                 val newId = dao.insert(task)
@@ -230,7 +232,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
         }
     })
     editing?.let { task ->
-        TaskEditorDialog(task = task, onDismiss = { editing = null }, onSave = { updated ->
+        TaskEditorDialog(task = task, categories = categories, onDismiss = { editing = null }, onSave = { updated ->
             scope.launch {
                 withContext(Dispatchers.IO) {
                     dao.update(updated)
@@ -493,13 +495,15 @@ private fun SettingsScreen(
     snoozeMinutes: Int,
     workdayStart: String,
     workdayEnd: String,
+    categories: List<String>,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onThemeChange: (String) -> Unit,
     onProductiveHoursChange: (Int) -> Unit,
     onProtectedTimesChange: (String) -> Unit,
     onSnoozeMinutesChange: (Int) -> Unit,
-    onWorkdayChange: (String, String) -> Unit
+    onWorkdayChange: (String, String) -> Unit,
+    onCategoriesChange: (List<String>) -> Unit
 ) {
     var workdayStartInput by remember(workdayStart) { mutableStateOf(workdayStart) }
     var workdayEndInput by remember(workdayEnd) { mutableStateOf(workdayEnd) }
@@ -1070,7 +1074,7 @@ private fun TaskCard(
 }
 
 @Composable
-private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (TaskEntity) -> Unit) {
+private fun TaskEditorDialog(task: TaskEntity?, categories: List<String>, onDismiss: () -> Unit, onSave: (TaskEntity) -> Unit) {
     var title by remember(task?.id) { mutableStateOf(task?.title.orEmpty()) }
     var description by remember(task?.id) { mutableStateOf(task?.description.orEmpty()) }
     var category by remember(task?.id) { mutableStateOf(task?.category ?: "Pribadi") }
@@ -1104,7 +1108,7 @@ private fun TaskEditorDialog(task: TaskEntity?, onDismiss: () -> Unit, onSave: (
                 Box {
                     TextButton(onClick = { categoryMenu = true }) { Text("Kategori: " + category + " ▾") }
                     DropdownMenu(categoryMenu, { categoryMenu = false }) {
-                        listOf("Sekolah – Sarpras", "Sekolah – Administrasi", "Pekerjaan Sampingan", "Pribadi", "Keluarga").forEach {
+                        (categories + category).distinct().forEach {
                             DropdownMenuItem(text = { Text(it) }, onClick = { category = it; categoryMenu = false })
                         }
                     }
