@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.remove
 import kotlinx.coroutines.flow.map
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -57,7 +58,7 @@ private val tabs = listOf("Beranda", "My Day", "Tugas", "Kalender", "Lainnya")
 private val tabIcons = listOf(Icons.Outlined.Home, Icons.Outlined.Today, Icons.Outlined.TaskAlt, Icons.Outlined.CalendarMonth, Icons.Outlined.MoreHoriz)
 private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity() {\n    private var lockEnabledCached = false\n    private val appLockedState = mutableStateOf(false)\n\n    override fun onStop() {\n        if (lockEnabledCached) appLockedState.value = true\n        super.onStop()\n    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val database = PaDayFlowDatabase.getInstance(applicationContext)
@@ -66,7 +67,7 @@ class MainActivity : ComponentActivity() {
             ReminderScheduler.reconcile(applicationContext, allTasks)
         }
         val settings = applicationContext.dataStore
-        val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }
+        val themeFlow = settings.data.map { it[THEME_MODE] ?: "system" }\n        val pinHashFlow = settings.data.map { it[APP_PIN_HASH] ?: "" }\n        val pinSaltFlow = settings.data.map { it[APP_PIN_SALT] ?: "" }\n        val appLockEnabledFlow = settings.data.map { it[APP_LOCK_ENABLED] ?: false }
         val categoriesFlow = settings.data.map { (it[TASK_CATEGORIES] ?: DEFAULT_TASK_CATEGORIES).split("\n").map(String::trim).filter(String::isNotBlank) }
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
         val protectedTimesFlow = settings.data.map { it[PROTECTED_TIME_BLOCKS] ?: DEFAULT_PROTECTED_TIME_BLOCKS }
@@ -74,7 +75,7 @@ class MainActivity : ComponentActivity() {
         val workdayStartFlow = settings.data.map { it[WORKDAY_START] ?: DEFAULT_WORKDAY_START }
         val workdayEndFlow = settings.data.map { it[WORKDAY_END] ?: DEFAULT_WORKDAY_END }
         setContent {
-            val themeMode by themeFlow.collectAsState(initial = "system")
+            val themeMode by themeFlow.collectAsState(initial = "system")\n            val pinHash by pinHashFlow.collectAsState(initial = "")\n            val pinSalt by pinSaltFlow.collectAsState(initial = "")\n            val appLockEnabled by appLockEnabledFlow.collectAsState(initial = false)\n            LaunchedEffect(appLockEnabled, pinHash) {\n                lockEnabledCached = appLockEnabled && pinHash.isNotBlank()\n                if (lockEnabledCached) appLockedState.value = true\n            }
             val categories by categoriesFlow.collectAsState(initial = DEFAULT_TASK_CATEGORIES.split("\n"))
             val productiveHours by productiveHoursFlow.collectAsState(initial = 6)
             val protectedTimes by protectedTimesFlow.collectAsState(initial = DEFAULT_PROTECTED_TIME_BLOCKS)
@@ -104,7 +105,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, categories: List<String>, onCategoriesChange: (List<String>) -> Unit, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, categories: List<String>, onCategoriesChange: (List<String>) -> Unit, pinHash: String, pinSalt: String, appLockEnabled: Boolean, appLocked: Boolean, onUnlock: () -> Unit, onSetPin: (String) -> Unit, onRemovePin: () -> Unit, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
     val activityContext = LocalContext.current
     val context = activityContext.applicationContext
     var tab by remember { mutableIntStateOf(0) }
@@ -192,7 +193,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
-                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, workdayStart, workdayEnd, categories, Modifier.padding(padding),
+                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, workdayStart, workdayEnd, categories, pinHash.isNotBlank(), onSetPin, onRemovePin, Modifier.padding(padding),
                     onBack = { showSettings = false }, onThemeChange = onThemeChange,
                     onProductiveHoursChange = onProductiveHoursChange, onProtectedTimesChange = onProtectedTimesChange,
                     onSnoozeMinutesChange = onSnoozeMinutesChange, onWorkdayChange = onWorkdayChange, onCategoriesChange = onCategoriesChange)
