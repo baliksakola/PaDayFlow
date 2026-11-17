@@ -83,7 +83,8 @@ class MainActivity : FragmentActivity() {
     }
     private var lockEnabledCached = false
     private val appLockedState = mutableStateOf(false)
-\n    override fun onStop() {
+
+    override fun onStop() {
         if (lockEnabledCached) appLockedState.value = true
         super.onStop()
     }
