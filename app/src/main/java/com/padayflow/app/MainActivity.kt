@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.remove
 import kotlinx.coroutines.flow.map
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -561,6 +560,8 @@ private fun SettingsScreen(
                 }
             }
         }
+
+        AppSecuritySettingsCard(pinConfigured = pinConfigured, onSetPin = onSetPin, onRemovePin = onRemovePin)
 
         Card(
             Modifier.fillMaxWidth(),
