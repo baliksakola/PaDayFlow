@@ -67,4 +67,28 @@ class ReminderSchedulePolicyTest {
         assertFalse(ReminderSchedulePolicy.matchesCurrentReminder(cancelled, now + 60_000L))
     }
 
+    @Test
+    fun recoversLatestFutureReminderWhenOldWorkRunsLate() {
+        val latestTrigger = now + 180_000L
+        val task = TaskEntity(id = 9, title = "Jadwal baru", reminderAt = latestTrigger)
+        assertTrue(
+            ReminderSchedulePolicy.replacementTrigger(task, now + 60_000L, now) == latestTrigger
+        )
+    }
+
+    @Test
+    fun doesNotRecoverExpiredOrInactiveReminder() {
+        val expired = TaskEntity(id = 10, title = "Lewat", reminderAt = now - 1L)
+        val completed = TaskEntity(
+            id = 11, title = "Selesai", status = "Selesai",
+            reminderAt = now + 60_000L
+        )
+        assertFalse(
+            ReminderSchedulePolicy.replacementTrigger(expired, now - 60_000L, now) != null
+        )
+        assertFalse(
+            ReminderSchedulePolicy.replacementTrigger(completed, now, now) != null
+        )
+    }
+
 }
