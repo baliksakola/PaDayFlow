@@ -98,6 +98,7 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
         val completeIntent = Intent(applicationContext, ReminderActionReceiver::class.java).apply {
             action = ACTION_COMPLETE
             putExtra("taskId", taskId)
+            putExtra("expectedTriggerAt", expectedTriggerAt)
         }
         val snoozeIntent = Intent(applicationContext, ReminderActionReceiver::class.java).apply {
             action = ACTION_SNOOZE
@@ -144,6 +145,8 @@ class ReminderActionReceiver : BroadcastReceiver() {
         if (taskId <= 0) return
         when (intent.action) {
             ACTION_COMPLETE -> {
+                val expectedTriggerAt = intent.getLongExtra("expectedTriggerAt", -1L)
+                if (expectedTriggerAt <= 0L) return
                 val pending = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
@@ -151,7 +154,8 @@ class ReminderActionReceiver : BroadcastReceiver() {
                         val dao = database.taskDao()
                         val completion = database.withTransaction {
                             val currentTask = dao.getTaskById(taskId)
-                            if (currentTask == null || dao.completeIfActive(taskId) != 1) {
+                            if (currentTask == null || currentTask.reminderAt != expectedTriggerAt ||
+                                dao.completeIfReminderMatches(taskId, expectedTriggerAt) != 1) {
                                 Triple(false, null, null)
                             } else {
                                 val nextTask = RecurringTaskFactory.next(currentTask)
