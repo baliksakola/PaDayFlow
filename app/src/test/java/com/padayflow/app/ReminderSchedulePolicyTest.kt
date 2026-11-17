@@ -43,4 +43,28 @@ class ReminderSchedulePolicyTest {
         val task = TaskEntity(id = 5, title = "Tanpa pengingat")
         assertFalse(ReminderSchedulePolicy.shouldSchedule(task, now))
     }
+    @Test
+    fun acceptsActionOnlyForCurrentActiveReminder() {
+        val task = TaskEntity(
+            id = 6, title = "Pengingat aktif", reminderAt = now + 60_000L
+        )
+        assertTrue(ReminderSchedulePolicy.matchesCurrentReminder(task, now + 60_000L))
+        assertFalse(ReminderSchedulePolicy.matchesCurrentReminder(task, now + 120_000L))
+        assertFalse(ReminderSchedulePolicy.matchesCurrentReminder(task, -1L))
+    }
+
+    @Test
+    fun rejectsActionsForCompletedOrCancelledTasks() {
+        val completed = TaskEntity(
+            id = 7, title = "Selesai", status = "Selesai",
+            reminderAt = now + 60_000L
+        )
+        val cancelled = TaskEntity(
+            id = 8, title = "Batal", status = "Dibatalkan",
+            reminderAt = now + 60_000L
+        )
+        assertFalse(ReminderSchedulePolicy.matchesCurrentReminder(completed, now + 60_000L))
+        assertFalse(ReminderSchedulePolicy.matchesCurrentReminder(cancelled, now + 60_000L))
+    }
+
 }
