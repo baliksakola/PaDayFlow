@@ -14,6 +14,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +68,8 @@ internal fun verifyAppPin(pin: String, salt: String, expectedHash: String): Bool
 internal fun AppLockScreen(
     expectedHash: String,
     salt: String,
+    biometricAvailable: Boolean,
+    onBiometricUnlock: () -> Unit,
     onUnlock: () -> Unit
 ) {
     var pin by remember { mutableStateOf("") }
@@ -114,7 +117,13 @@ internal fun AppLockScreen(
             },
             enabled = pin.length == 6 && !checking,
             modifier = Modifier.fillMaxWidth()
-        ) { Text(if (checking) "Memeriksa..." else "Buka aplikasi") }
+        ) { Text(if (checking) "Memeriksa..." else "Buka dengan PIN") }
+        if (biometricAvailable) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onBiometricUnlock, modifier = Modifier.fillMaxWidth()) {
+                Text("Buka dengan biometrik")
+            }
+        }
     }
 }
 
