@@ -104,6 +104,7 @@ internal class TaskReminderWorker(context: Context, params: WorkerParameters) : 
             putExtra("taskId", taskId)
             putExtra("title", title)
             putExtra("snoozeMinutes", snoozeMinutes)
+            putExtra("expectedTriggerAt", expectedTriggerAt)
         }
         val completePending = PendingIntent.getBroadcast(applicationContext, taskId.toInt() + 100000, completeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val snoozePending = PendingIntent.getBroadcast(applicationContext, taskId.toInt() + 200000, snoozeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -175,12 +176,14 @@ class ReminderActionReceiver : BroadcastReceiver() {
             ACTION_SNOOZE -> {
                 val title = intent.getStringExtra("title") ?: "Tugas PaDayFlow"
                 val snoozeMinutes = intent.getIntExtra("snoozeMinutes", 60).coerceIn(15, 120)
+                val expectedTriggerAt = intent.getLongExtra("expectedTriggerAt", -1L)
+                if (expectedTriggerAt <= 0L) return
                 val snoozedUntil = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(snoozeMinutes.toLong())
                 val pending = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         val updated = PaDayFlowDatabase.getInstance(context).taskDao()
-                            .updateReminderAtIfActive(taskId, snoozedUntil)
+                            .updateReminderAtIfActive(taskId, expectedTriggerAt, snoozedUntil)
                         if (updated == 1) {
                             ReminderScheduler.schedule(context, taskId, title, snoozedUntil)
                         }
