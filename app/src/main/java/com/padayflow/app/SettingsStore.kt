@@ -3,10 +3,14 @@ package com.padayflow.app
 import android.content.Context
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 
 internal val Context.dataStore by preferencesDataStore(name = "padayflow_settings")
 internal val THEME_MODE = stringPreferencesKey("theme_mode")
+internal val APP_PIN_HASH = stringPreferencesKey("app_pin_hash")
+internal val APP_PIN_SALT = stringPreferencesKey("app_pin_salt")
+internal val APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
 internal val TASK_CATEGORIES = stringPreferencesKey("task_categories")
 internal const val DEFAULT_TASK_CATEGORIES = "Sekolah – Sarpras\nSekolah – Administrasi\nPekerjaan Sampingan\nPribadi\nKeluarga"
 
