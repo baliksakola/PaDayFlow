@@ -36,9 +36,11 @@ internal object RecurringTaskFactory {
         val deadlineDate = oldDeadlineDate?.let {
             nextDate.plusDays(ChronoUnit.DAYS.between(baseDate, it))
         }
-        fun shiftTime(value: Long?): Long? = value?.let {
-            val time = Instant.ofEpochMilli(it).atZone(zone).toLocalTime()
-            nextDate.atTime(time).atZone(zone).toInstant().toEpochMilli()
+        fun shiftDateTime(value: Long?): Long? = value?.let {
+            val original = Instant.ofEpochMilli(it).atZone(zone)
+            val dayOffset = ChronoUnit.DAYS.between(baseDate, original.toLocalDate())
+            nextDate.plusDays(dayOffset).atTime(original.toLocalTime())
+                .atZone(zone).toInstant().toEpochMilli()
         }
 
         return task.copy(
@@ -46,9 +48,9 @@ internal object RecurringTaskFactory {
             status = "Belum dikerjakan",
             startAt = nextStart,
             deadlineAt = deadlineDate?.atStartOfDay(zone)?.toInstant()?.toEpochMilli(),
-            scheduledStartAt = shiftTime(task.scheduledStartAt),
-            scheduledEndAt = shiftTime(task.scheduledEndAt),
-            reminderAt = shiftTime(task.reminderAt),
+            scheduledStartAt = shiftDateTime(task.scheduledStartAt),
+            scheduledEndAt = shiftDateTime(task.scheduledEndAt),
+            reminderAt = shiftDateTime(task.reminderAt),
             createdAt = now
         )
     }
