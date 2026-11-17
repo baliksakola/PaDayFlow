@@ -9,7 +9,10 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.map
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,7 +60,28 @@ private val tabs = listOf("Beranda", "My Day", "Tugas", "Kalender", "Lainnya")
 private val tabIcons = listOf(Icons.Outlined.Home, Icons.Outlined.Today, Icons.Outlined.TaskAlt, Icons.Outlined.CalendarMonth, Icons.Outlined.MoreHoriz)
 private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+    private fun showBiometricPrompt() {
+        val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                super.onAuthenticationSucceeded(result)
+                appLockedState.value = false
+            }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                super.onAuthenticationError(errorCode, errString)
+                if (errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON && errorCode != BiometricPrompt.ERROR_USER_CANCELED) {
+                    Toast.makeText(this@MainActivity, errString, Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Buka PaDayFlow")
+            .setSubtitle("Verifikasi menggunakan biometrik perangkat")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            .setNegativeButtonText("Gunakan PIN")
+            .build()
+        prompt.authenticate(promptInfo)
+    }
     private var lockEnabledCached = false
     private val appLockedState = mutableStateOf(false)
 \n    override fun onStop() {
@@ -87,6 +111,7 @@ class MainActivity : ComponentActivity() {
             val pinHash by pinHashFlow.collectAsState(initial = "")
             val pinSalt by pinSaltFlow.collectAsState(initial = "")
             val appLockEnabled by appLockEnabledFlow.collectAsState(initial = false)
+            val biometricAvailable = remember { BiometricManager.from(this@MainActivity).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS }
             var securityInitialized by remember { mutableStateOf(false) }
             LaunchedEffect(appLockEnabled, pinHash) {
                 lockEnabledCached = appLockEnabled && pinHash.isNotBlank()
@@ -104,7 +129,7 @@ class MainActivity : ComponentActivity() {
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(), categories = categories, onCategoriesChange = { value -> lifecycleScope.launch { settings.edit { it[TASK_CATEGORIES] = value.joinToString("\n") } } },
-                        pinHash = pinHash, pinSalt = pinSalt, appLockEnabled = appLockEnabled, appLocked = appLockedState.value, onUnlock = { appLockedState.value = false },
+                        pinHash = pinHash, pinSalt = pinSalt, appLockEnabled = appLockEnabled, appLocked = appLockedState.value, biometricAvailable = biometricAvailable, onBiometricUnlock = { showBiometricPrompt() }, onUnlock = { appLockedState.value = false },
                         onSetPin = { pin -> val salt = createPinSalt(); val hash = hashAppPin(pin, salt); lifecycleScope.launch { settings.edit { it[APP_PIN_SALT] = salt; it[APP_PIN_HASH] = hash; it[APP_LOCK_ENABLED] = true } } },
                         onRemovePin = { lifecycleScope.launch { settings.edit { it.remove(APP_PIN_HASH); it.remove(APP_PIN_SALT); it[APP_LOCK_ENABLED] = false } }; appLockedState.value = false },
                         initialTaskId = intent.getLongExtra("openTaskId", -1L),
@@ -127,11 +152,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, categories: List<String>, onCategoriesChange: (List<String>) -> Unit, pinHash: String, pinSalt: String, appLockEnabled: Boolean, appLocked: Boolean, onUnlock: () -> Unit, onSetPin: (String) -> Unit, onRemovePin: () -> Unit, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, categories: List<String>, onCategoriesChange: (List<String>) -> Unit, pinHash: String, pinSalt: String, appLockEnabled: Boolean, appLocked: Boolean, biometricAvailable: Boolean, onBiometricUnlock: () -> Unit, onUnlock: () -> Unit, onSetPin: (String) -> Unit, onRemovePin: () -> Unit, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
     val activityContext = LocalContext.current
     val context = activityContext.applicationContext
     if (appLockEnabled && appLocked && pinHash.isNotBlank()) {
-        AppLockScreen(expectedHash = pinHash, salt = pinSalt, onUnlock = onUnlock)
+        AppLockScreen(expectedHash = pinHash, salt = pinSalt, biometricAvailable = biometricAvailable, onBiometricUnlock = onBiometricUnlock, onUnlock = onUnlock)
         return
     }
     var tab by remember { mutableIntStateOf(0) }
