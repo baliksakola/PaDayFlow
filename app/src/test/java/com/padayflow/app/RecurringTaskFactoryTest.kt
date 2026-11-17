@@ -41,6 +41,25 @@ class RecurringTaskFactoryTest {
     }
 
     @Test
+    fun recurrencePreservesReminderAndScheduleDayOffsets() {
+        val task = TaskEntity(
+            title = "Persiapan acara",
+            startAt = millis("2026-11-16"),
+            scheduledStartAt = millis("2026-11-16", "23:00"),
+            scheduledEndAt = millis("2026-11-17", "01:00"),
+            reminderAt = millis("2026-11-15", "20:30"),
+            recurrenceRule = "WEEKLY",
+            recurrenceInterval = 1
+        )
+
+        val next = RecurringTaskFactory.next(task, zone, millis("2026-11-16"))!!
+
+        assertEquals(millis("2026-11-23", "23:00"), next.scheduledStartAt)
+        assertEquals(millis("2026-11-24", "01:00"), next.scheduledEndAt)
+        assertEquals(millis("2026-11-22", "20:30"), next.reminderAt)
+    }
+
+    @Test
     fun weeklyRecurrenceAdvancesByConfiguredInterval() {
         val task = TaskEntity(
             title = "Rapat rutin",
