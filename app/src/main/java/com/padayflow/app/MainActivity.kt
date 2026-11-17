@@ -613,13 +613,15 @@ private fun SettingsScreen(
 
         val notificationContext = LocalContext.current
         var notificationPermissionRefresh by remember { mutableIntStateOf(0) }
+        var notificationPermissionError by remember { mutableStateOf<String?>(null) }
         val notificationPermissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
         ) { granted ->
             notificationPermissionRefresh++
+            notificationPermissionError = if (granted) null else "Izin tidak diberikan. Anda dapat mengaktifkannya melalui Pengaturan Android."
         }
-        val notificationPermissionGranted = notificationPermissionRefresh >= 0 && (Build.VERSION.SDK_INT < 33 ||
-            ContextCompat.checkSelfPermission(notificationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+        val notificationPermissionGranted = Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(notificationContext, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         Card(
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
@@ -634,10 +636,23 @@ private fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                notificationPermissionError?.let { error ->
+                    Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
                 if (!notificationPermissionGranted && Build.VERSION.SDK_INT >= 33) {
                     Button(
                         onClick = {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            notificationPermissionError = null
+                            if (Build.VERSION.SDK_INT >= 33 &&
+                                ContextCompat.checkSelfPermission(notificationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                runCatching {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }.onFailure {
+                                    notificationPermissionError = "Permintaan izin tidak dapat dibuka. Aktifkan notifikasi melalui Pengaturan Android."
+                                }
+                            } else {
+                                notificationPermissionRefresh++
+                            }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Izinkan notifikasi") }
