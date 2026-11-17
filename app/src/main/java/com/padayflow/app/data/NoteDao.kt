@@ -13,6 +13,9 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE type = :type ORDER BY updatedAt DESC")
     fun observeByType(type: String): Flow<List<NoteEntity>>
 
+    @Query("SELECT * FROM notes ORDER BY updatedAt DESC")
+    fun observeAllNotes(): Flow<List<NoteEntity>>
+
     @Query("SELECT * FROM notes")
     suspend fun getAllForBackup(): List<NoteEntity>
 
