@@ -1100,21 +1100,57 @@ private fun SmartAssistantScreen(tasks: List<TaskEntity>, productiveHours: Int, 
     val zone = ZoneId.systemDefault()
     val startToday = today.atStartOfDay(zone).toInstant().toEpochMilli()
     val endSoon = today.plusDays(4).atStartOfDay(zone).toInstant().toEpochMilli()
+    val startTomorrow = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    val endWeek = today.plusDays(8).atStartOfDay(zone).toInstant().toEpochMilli()
     val active = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
     val overdue = active.filter { it.deadlineAt != null && it.deadlineAt < startToday }
-    val dueSoon = active.filter { it.deadlineAt != null && it.deadlineAt >= startToday && it.deadlineAt < endSoon }
+    val dueToday = active.filter { it.deadlineAt != null && it.deadlineAt >= startToday && it.deadlineAt < startTomorrow }
+    val dueSoon = active.filter { it.deadlineAt != null && it.deadlineAt >= startTomorrow && it.deadlineAt < endSoon }
     val urgent = active.filter { it.priority == "Mendesak" || it.priority == "Tinggi" }
-    val noSchedule = active.filter { it.startAt == null && it.deadlineAt == null }
-    val todayTasks = active.filter { it.startAt?.let { v -> Instant.ofEpochMilli(v).atZone(zone).toLocalDate() == today } == true }
+    val noSchedule = active.filter { it.startAt == null && it.scheduledStartAt == null && it.deadlineAt == null }
+    val todayTasks = active.filter { task ->
+        (task.scheduledStartAt ?: task.startAt)?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() == today } == true
+    }
+    val scheduledToday = todayTasks.filter { it.scheduledStartAt != null && it.scheduledEndAt != null }.sortedBy { it.scheduledStartAt }
+    val conflicts = buildList {
+        for (i in scheduledToday.indices) for (j in i + 1 until scheduledToday.size) {
+            val first = scheduledToday[i]
+            val second = scheduledToday[j]
+            val firstStart = first.scheduledStartAt ?: continue
+            val firstEnd = first.scheduledEndAt ?: continue
+            val secondStart = second.scheduledStartAt ?: continue
+            val secondEnd = second.scheduledEndAt ?: continue
+            if (secondStart < firstEnd && firstStart < secondEnd) add(first to second)
+        }
+    }
+    val upcoming = active.filter { task ->
+        val scheduled = task.scheduledStartAt ?: task.startAt
+        scheduled != null && scheduled >= startToday && scheduled < endWeek
+    }.sortedBy { it.scheduledStartAt ?: it.startAt }.take(6)
+    val review = (overdue + dueToday + dueSoon + urgent).distinctBy { it.id }.sortedWith(
+        compareBy<TaskEntity> {
+            when {
+                it.deadlineAt != null && it.deadlineAt < startToday -> 0
+                it.priority == "Mendesak" -> 1
+                it.deadlineAt != null && it.deadlineAt < endSoon -> 2
+                it.priority == "Tinggi" -> 3
+                else -> 4
+            }
+        }.thenBy { it.deadlineAt ?: Long.MAX_VALUE }
+    )
     val plannedMinutes = todayTasks.sumOf { it.estimatedMinutes.coerceAtLeast(0) }
     val capacityMinutes = productiveHours.coerceIn(1, 16) * 60
     val capacityPercent = plannedMinutes * 100 / capacityMinutes
     val suggestions = buildList {
+        if (conflicts.isNotEmpty()) add("Ada ${conflicts.size} konflik jadwal hari ini. Periksa tugas yang waktunya bertumpuk dan atur ulang salah satunya.")
         if (plannedMinutes > capacityMinutes) add("Beban terjadwal melebihi kapasitas: ${plannedMinutes / 60} jam ${plannedMinutes % 60} menit dari batas ${productiveHours} jam. Tinjau prioritas dan pertimbangkan memindahkan sebagian tugas.")
         else if (plannedMinutes >= capacityMinutes * 80 / 100) add("Kapasitas hari ini hampir penuh: estimasi penggunaan ${capacityPercent}%. Sisakan ruang untuk jeda dan pekerjaan tak terduga.")
         overdue.forEach { add("Terlambat: ${it.title}. Tinjau progres dan tentukan tindak lanjut.") }
+        if (dueToday.isNotEmpty()) add("${dueToday.size} tugas memiliki deadline hari ini. Pastikan masuk dalam urutan kerja.")
         dueSoon.forEach { add("Deadline mendekat: ${it.title}. Sisihkan waktu sebelum ${formatDate(it.deadlineAt!!)}.") }
         urgent.filter { t -> overdue.none { it.id == t.id } && dueSoon.none { it.id == t.id } }.forEach { add("Prioritas tinggi: ${it.title}. Pertimbangkan untuk mengerjakannya lebih awal.") }
+        val unscheduledUrgent = urgent.filter { it.startAt == null && it.scheduledStartAt == null }
+        if (unscheduledUrgent.isNotEmpty()) add("${unscheduledUrgent.size} tugas prioritas tinggi belum memiliki jadwal mulai.")
         noSchedule.take(5).forEach { add("Belum dijadwalkan: ${it.title}. Tetapkan tanggal mulai atau deadline.") }
     }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
