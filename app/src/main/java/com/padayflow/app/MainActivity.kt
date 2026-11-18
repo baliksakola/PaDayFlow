@@ -351,6 +351,10 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
     val todayTasks = active.filter { t -> (t.startAt != null && t.startAt >= start && t.startAt < end) || (t.scheduledStartAt != null && t.scheduledStartAt >= start && t.scheduledStartAt < end) }.distinctBy { it.id }.sortedBy { it.scheduledStartAt ?: it.startAt ?: Long.MAX_VALUE }
     val urgent = active.count { it.priority == "Mendesak" }
     val overdue = active.count { it.deadlineAt?.let { d -> d < start } == true }
+    val todayDone = tasks.count { t -> t.status == "Selesai" && ((t.startAt != null && t.startAt >= start && t.startAt < end) || (t.scheduledStartAt != null && t.scheduledStartAt >= start && t.scheduledStartAt < end)) }
+    val todayTotal = todayTasks.size + todayDone
+    val dueSoonEnd = today.plusDays(7).atStartOfDay(zone).toInstant().toEpochMilli()
+    val dueSoon = active.filter { it.deadlineAt?.let { d -> d >= start && d < dueSoonEnd } == true }.sortedBy { it.deadlineAt }.take(4)
     val dateDay = today.format(DateTimeFormatter.ofPattern("dd"))
     val dateMonth = today.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("id", "ID"))).uppercase(Locale("id", "ID"))
     val weekday = today.format(DateTimeFormatter.ofPattern("EEEE", Locale("id", "ID"))).uppercase(Locale("id", "ID"))
@@ -388,6 +392,39 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
             Column(Modifier.weight(1f)) { Text(todayTasks.size.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("AGENDA", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Column(Modifier.weight(1f)) { Text(urgent.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("MENDESAK", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Column(Modifier.weight(1f)) { Text(overdue.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("TERLAMBAT", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        if (todayTotal > 0) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("PROGRES HARI INI", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.weight(1f))
+                        Text("$todayDone / $todayTotal selesai", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    }
+                    LinearProgressIndicator(
+                        progress = { if (todayTotal == 0) 0f else todayDone.toFloat() / todayTotal },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Text("${if (todayTotal == 0) 0 else todayDone * 100 / todayTotal}% agenda hari ini terselesaikan", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        if (dueSoon.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("DEADLINE MENDATANG", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                dueSoon.forEach { task ->
+                    Row(Modifier.fillMaxWidth().clickable { onOpenTask(task) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(task.title, fontWeight = FontWeight.SemiBold)
+                            Text(task.category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(task.deadlineAt?.let(::formatDate) ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
