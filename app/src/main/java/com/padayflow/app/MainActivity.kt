@@ -169,6 +169,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
     var showSettings by remember { mutableStateOf(false) }
     var showBackupRestore by remember { mutableStateOf(false) }
     var showDailyPlanning by remember { mutableStateOf(false) }
+    var showExportReports by remember { mutableStateOf(false) }
     var showGlobalSearch by remember { mutableStateOf(false) }
     var openedNotesType by remember { mutableStateOf<String?>(null) }
     val tasks by dao.observeTasks().collectAsState(initial = emptyList())
@@ -192,6 +193,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
             showSettings -> showSettings = false
             showBackupRestore -> showBackupRestore = false
             showDailyPlanning -> showDailyPlanning = false
+            showExportReports -> showExportReports = false
             showGlobalSearch -> showGlobalSearch = false
             tab != 0 -> tab = 0
             else -> {
@@ -254,6 +256,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onSnoozeMinutesChange = onSnoozeMinutesChange, onWorkdayChange = onWorkdayChange, onCategoriesChange = onCategoriesChange)
                 showBackupRestore -> BackupRestoreScreen(database, Modifier.padding(padding),
                     onBack = { showBackupRestore = false })
+                showExportReports -> ExportReportsScreen(tasks, Modifier.padding(padding), onBack = { showExportReports = false })
                 showDailyPlanning -> DailyPlanningScreen(tasks, productiveHours, protectedTimes, workdayStart, workdayEnd, Modifier.padding(padding),
                     onBack = { showDailyPlanning = false }, onOpenTask = { editing = it },
                     onApproveSchedule = { task ->
@@ -269,6 +272,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onAnalyticsClick = { showAnalytics = true },
                     onSettingsClick = { showSettings = true },
                     onBackupClick = { showBackupRestore = true },
+                    onExportClick = { showExportReports = true },
                     onDailyPlanningClick = { showDailyPlanning = true })
             }
             else -> Placeholder(tabs[tab], Modifier.padding(padding))
@@ -558,8 +562,51 @@ private fun TaskList(tasks: List<TaskEntity>, modifier: Modifier = Modifier, tit
     }
 }
 
+
 @Composable
-private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit, onBackupClick: () -> Unit, onDailyPlanningClick: () -> Unit) {
+private fun ExportReportsScreen(tasks: List<TaskEntity>, modifier: Modifier = Modifier, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var exporting by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, contentDescription = "Kembali") }
+            Column {
+                Text("EXPORT / REPORTING", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Text("Ekspor data tugas", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(tasks.size.toString(), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+                Text("Total tugas tersimpan", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("File berisi judul, kategori, deskripsi, prioritas, status, tanggal mulai, deadline, estimasi, dan catatan.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Text("PILIH FORMAT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+        WorkspaceRow("PDF", "Laporan siap dibaca dan dicetak", Icons.Outlined.PictureAsPdf) {
+            exporting = "PDF"; error = null
+            runCatching { TaskExport.share(context, tasks, "pdf") }.onFailure { error = it.message ?: "Gagal membuat PDF" }
+            exporting = null
+        }
+        WorkspaceRow("Excel (.xlsx)", "Data tabel untuk diolah kembali", Icons.Outlined.TableChart) {
+            exporting = "XLSX"; error = null
+            runCatching { TaskExport.share(context, tasks, "xlsx") }.onFailure { error = it.message ?: "Gagal membuat file Excel" }
+            exporting = null
+        }
+        WorkspaceRow("CSV", "Format ringan dan kompatibel dengan spreadsheet", Icons.Outlined.Description) {
+            exporting = "CSV"; error = null
+            runCatching { TaskExport.share(context, tasks, "csv") }.onFailure { error = it.message ?: "Gagal membuat CSV" }
+            exporting = null
+        }
+        if (exporting != null) LinearProgressIndicator(Modifier.fillMaxWidth())
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        Text("Ekspor menggunakan data lokal di perangkat. Pilih aplikasi tujuan pada menu berbagi Android.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit, onBackupClick: () -> Unit, onExportClick: () -> Unit, onDailyPlanningClick: () -> Unit) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text("WORKSPACE / 05", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp); Text("Ruang kerja", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black); Text("Alat bantu untuk mengelola ritme dan informasi.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -579,6 +626,7 @@ private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, on
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("APP & DATA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
             WorkspaceRow("Backup & Restore", "Simpan atau pulihkan data melalui JSON", Icons.Outlined.CloudUpload, onBackupClick)
+            WorkspaceRow("Export & Reporting", "Ekspor daftar tugas ke PDF, Excel, atau CSV", Icons.Outlined.FileDownload, onExportClick)
             WorkspaceRow("Settings", "Tema dan preferensi aplikasi", Icons.Outlined.Settings, onSettingsClick)
         }
         Spacer(Modifier.height(72.dp))
