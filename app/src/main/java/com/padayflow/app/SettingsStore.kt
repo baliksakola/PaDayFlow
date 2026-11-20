@@ -11,6 +11,7 @@ internal val THEME_MODE = stringPreferencesKey("theme_mode")
 internal val APP_PIN_HASH = stringPreferencesKey("app_pin_hash")
 internal val APP_PIN_SALT = stringPreferencesKey("app_pin_salt")
 internal val APP_LOCK_ENABLED = booleanPreferencesKey("app_lock_enabled")
+internal val APP_BIOMETRIC_ENABLED = booleanPreferencesKey("app_biometric_enabled")
 internal val TASK_CATEGORIES = stringPreferencesKey("task_categories")
 internal const val DEFAULT_TASK_CATEGORIES = "Sekolah – Sarpras\nSekolah – Administrasi\nPekerjaan Sampingan\nPribadi\nKeluarga"
 
