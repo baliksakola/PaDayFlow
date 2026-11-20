@@ -55,8 +55,8 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val tabs = listOf("Beranda", "My Day", "Tugas", "Kalender", "Lainnya")
-private val tabIcons = listOf(Icons.Outlined.Home, Icons.Outlined.Today, Icons.Outlined.TaskAlt, Icons.Outlined.CalendarMonth, Icons.Outlined.MoreHoriz)
+private val tabs = listOf("Beranda", "Tugas", "Rekapan", "Lainnya")
+private val tabIcons = listOf(Icons.Outlined.Home, Icons.Outlined.TaskAlt, Icons.Outlined.Analytics, Icons.Outlined.MoreHoriz)
 private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
 class MainActivity : FragmentActivity() {
@@ -258,14 +258,11 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
     ) { padding ->
         when (tab) {
             0 -> Dashboard(tasks, Modifier.padding(padding), onOpenTask = { editing = it }, onSearchClick = { showGlobalSearch = true })
-            1 -> MyDay(tasks, Modifier.padding(padding),
+            1 -> TaskList(tasks, Modifier.padding(padding), title = "Tugas & Agenda",
                 onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, database, context) } } },
                 onEdit = { editing = it }, onDelete = { deleting = it })
-            2 -> TaskList(tasks, Modifier.padding(padding), title = "Semua tugas",
-                onComplete = { task -> scope.launch { withContext(Dispatchers.IO) { completeTaskAndScheduleNext(task, database, context) } } },
-                onEdit = { editing = it }, onDelete = { deleting = it })
-            3 -> CalendarScreen(tasks, Modifier.padding(padding), onEdit = { editing = it })
-            4 -> when {
+            2 -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding), onBack = {})
+            3 -> when {
                 showGlobalSearch -> GlobalSearchScreen(tasks, allNotes, Modifier.padding(padding), onBack = { showGlobalSearch = false }, onOpenTask = { showGlobalSearch = false; editing = it }, onOpenNote = { note -> showGlobalSearch = false; openedNotesType = note.type })
                 openedNotesType != null -> NotesScreen(noteDao, openedNotesType!!, Modifier.padding(padding),
                     onBack = { openedNotesType = null })
