@@ -366,7 +366,7 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("PA / DAYFLOW", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = MaterialTheme.colorScheme.primary)
-                Text("PERSONAL OPERATING SYSTEM", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Atur kegiatan dan pengingat harian", style = MaterialTheme.typography.labelSmall, letterSpacing = 0.4.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = onSearchClick) { Icon(Icons.Outlined.Search, contentDescription = "Cari tugas dan catatan") }
             Text("●  OFFLINE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
@@ -376,7 +376,7 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(weekday, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
                 Text(dateMonth, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Hari ini bukan daftar tugas. Ini ruang untuk bergerak.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Fokus pada hal penting hari ini.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.primary) {
@@ -607,27 +607,41 @@ private fun ExportReportsScreen(tasks: List<TaskEntity>, modifier: Modifier = Mo
 
 @Composable
 private fun MoreMenu(modifier: Modifier = Modifier, onHabitClick: () -> Unit, onNotesClick: () -> Unit, onBrainDumpClick: () -> Unit, onSmartAssistantClick: () -> Unit, onAnalyticsClick: () -> Unit, onSettingsClick: () -> Unit, onBackupClick: () -> Unit, onExportClick: () -> Unit, onDailyPlanningClick: () -> Unit) {
+    var showAdditional by remember { mutableStateOf(false) }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text("WORKSPACE / 05", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.7.sp); Text("Ruang kerja", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black); Text("Alat bantu untuk mengelola ritme dan informasi.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("PLAN & REFLECT", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-            WorkspaceRow("Daily Planning", "Susun waktu dan kapasitas harian", Icons.Outlined.Today, onDailyPlanningClick)
-            WorkspaceRow("Smart Assistant", "Analisis risiko dan rekomendasi offline", Icons.Outlined.AutoAwesome, onSmartAssistantClick)
-            WorkspaceRow("Analytics", "Ringkasan produktivitas dan kebiasaan", Icons.Outlined.Analytics, onAnalyticsClick)
-            WorkspaceRow("Habit Tracker", "Pantau konsistensi kebiasaan", Icons.Outlined.CheckCircle, onHabitClick)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("MENU", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Text("Lainnya", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
+            Text("Atur jadwal, pengingat, dan data aplikasi.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("CAPTURE & ORGANIZE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-            WorkspaceRow("Notes", "Catatan dan ide penting", Icons.Outlined.StickyNote2, onNotesClick)
-            WorkspaceRow("Brain Dump", "Tangkap pikiran tanpa struktur", Icons.Outlined.Lightbulb, onBrainDumpClick)
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                WorkspaceRow("Atur waktu harian", "Susun jadwal dan kapasitas waktu", Icons.Outlined.Today, onDailyPlanningClick)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                WorkspaceRow("Saran pengelolaan tugas", "Lihat tugas terlambat dan prioritas", Icons.Outlined.AutoAwesome, onSmartAssistantClick)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                WorkspaceRow("Pengaturan", "Notifikasi, jam kerja, kategori, dan keamanan", Icons.Outlined.Settings, onSettingsClick)
+            }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("APP & DATA", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-            WorkspaceRow("Backup & Restore", "Simpan atau pulihkan data melalui JSON", Icons.Outlined.CloudUpload, onBackupClick)
-            WorkspaceRow("Export & Reporting", "Ekspor daftar tugas ke PDF, Excel, atau CSV", Icons.Outlined.FileDownload, onExportClick)
-            WorkspaceRow("Settings", "Tema dan preferensi aplikasi", Icons.Outlined.Settings, onSettingsClick)
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                WorkspaceRow("Backup & Restore", "Cadangkan atau pulihkan data", Icons.Outlined.CloudUpload, onBackupClick)
+            }
+        }
+        TextButton(onClick = { showAdditional = !showAdditional }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (showAdditional) "Sembunyikan fitur tambahan" else "Tampilkan fitur tambahan")
+            Spacer(Modifier.width(8.dp))
+            Icon(if (showAdditional) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, contentDescription = null)
+        }
+        if (showAdditional) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("FITUR TAMBAHAN", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                WorkspaceRow("Analytics", "Ringkasan produktivitas", Icons.Outlined.Analytics, onAnalyticsClick)
+                WorkspaceRow("Habit Tracker", "Pantau kebiasaan", Icons.Outlined.CheckCircle, onHabitClick)
+                WorkspaceRow("Notes", "Catatan dan ide", Icons.Outlined.StickyNote2, onNotesClick)
+                WorkspaceRow("Brain Dump", "Simpan pikiran dengan cepat", Icons.Outlined.Lightbulb, onBrainDumpClick)
+                WorkspaceRow("Export & Reporting", "Ekspor tugas ke PDF, Excel, atau CSV", Icons.Outlined.FileDownload, onExportClick)
+            }
         }
         Spacer(Modifier.height(72.dp))
     }
