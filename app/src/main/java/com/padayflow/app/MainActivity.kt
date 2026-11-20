@@ -352,15 +352,15 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
     val zone = ZoneId.systemDefault()
     val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-    val active = tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" }
-    val done = tasks.count { it.status == "Selesai" }
-    val todayTasks = active.filter { t -> (t.startAt != null && t.startAt >= start && t.startAt < end) || (t.scheduledStartAt != null && t.scheduledStartAt >= start && t.scheduledStartAt < end) }.distinctBy { it.id }.sortedBy { it.scheduledStartAt ?: it.startAt ?: Long.MAX_VALUE }
-    val urgent = active.count { it.priority == "Mendesak" }
-    val overdue = active.count { it.deadlineAt?.let { d -> d < start } == true }
-    val todayDone = tasks.count { t -> t.status == "Selesai" && ((t.startAt != null && t.startAt >= start && t.startAt < end) || (t.scheduledStartAt != null && t.scheduledStartAt >= start && t.scheduledStartAt < end)) }
+    val active = remember(tasks) { tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" } }
+    val done = remember(tasks) { tasks.count { it.status == "Selesai" } }
+    val todayTasks = remember(tasks, start, end) { active.filter { t -> (t.startAt != null && t.startAt >= start && t.startAt < end) || (t.scheduledStartAt != null && t.scheduledStartAt >= start && t.scheduledStartAt < end) }.distinctBy { it.id }.sortedBy { it.scheduledStartAt ?: it.startAt ?: Long.MAX_VALUE } }
+    val urgent = remember(active) { active.count { it.priority == "Mendesak" } }
+    val overdue = remember(active, start) { active.count { it.deadlineAt?.let { d -> d < start } == true } }
+    val todayDone = remember(tasks, start, end) { tasks.count { t -> t.status == "Selesai" && ((t.startAt != null && t.startAt >= start && t.startAt < end) || (t.scheduledStartAt != null && t.scheduledStartAt >= start && t.scheduledStartAt < end)) } }
     val todayTotal = todayTasks.size + todayDone
     val dueSoonEnd = today.plusDays(7).atStartOfDay(zone).toInstant().toEpochMilli()
-    val dueSoon = active.filter { it.deadlineAt?.let { d -> d >= start && d < dueSoonEnd } == true }.sortedBy { it.deadlineAt }.take(4)
+    val dueSoon = remember(active, start, dueSoonEnd) { active.filter { it.deadlineAt?.let { d -> d >= start && d < dueSoonEnd } == true }.sortedBy { it.deadlineAt }.take(4) }
     val dateDay = today.format(DateTimeFormatter.ofPattern("dd"))
     val dateMonth = today.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("id", "ID"))).uppercase(Locale("id", "ID"))
     val weekday = today.format(DateTimeFormatter.ofPattern("EEEE", Locale("id", "ID"))).uppercase(Locale("id", "ID"))
@@ -525,12 +525,13 @@ private fun TaskList(tasks: List<TaskEntity>, modifier: Modifier = Modifier, tit
     var priorityFilter by remember(title) { mutableStateOf("Semua") }
     var sortByDeadline by remember(title) { mutableStateOf(false) }
     var filterMenu by remember(title) { mutableStateOf("") }
-    val categories = listOf("Semua") + tasks.map { it.category }.distinct().sorted()
+    val categories = remember(tasks) { listOf("Semua") + tasks.map { it.category }.distinct().sorted() }
     val statuses = listOf("Semua", "Belum dikerjakan", "Sedang dikerjakan", "Tertunda", "Menunggu orang lain", "Selesai", "Dibatalkan")
     val priorities = listOf("Semua", "Mendesak", "Tinggi", "Normal", "Rendah")
-    val filtered = tasks.filter { (statusFilter == "Semua" || it.status == statusFilter) && (categoryFilter == "Semua" || it.category == categoryFilter) && (priorityFilter == "Semua" || it.priority == priorityFilter) }.let { list -> if (sortByDeadline) list.sortedWith(compareBy<TaskEntity> { it.deadlineAt == null }.thenBy { it.deadlineAt }) else list }
-    val activeCount = filtered.count { it.status != "Selesai" && it.status != "Dibatalkan" }
-    val overdueCount = filtered.count { it.deadlineAt != null && it.deadlineAt < LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() && it.status != "Selesai" && it.status != "Dibatalkan" }
+    val filtered = remember(tasks, statusFilter, categoryFilter, priorityFilter, sortByDeadline) { tasks.filter { (statusFilter == "Semua" || it.status == statusFilter) && (categoryFilter == "Semua" || it.category == categoryFilter) && (priorityFilter == "Semua" || it.priority == priorityFilter) }.let { list -> if (sortByDeadline) list.sortedWith(compareBy<TaskEntity> { it.deadlineAt == null }.thenBy { it.deadlineAt }) else list } }
+    val activeCount = remember(filtered) { filtered.count { it.status != "Selesai" && it.status != "Dibatalkan" } }
+    val todayStart = remember { LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }
+    val overdueCount = remember(filtered, todayStart) { filtered.count { it.deadlineAt != null && it.deadlineAt < todayStart && it.status != "Selesai" && it.status != "Dibatalkan" } }
     Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text("TASK LIBRARY / 04", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.7.sp, fontWeight = FontWeight.Bold); Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black); Text("Tangkap, susun, lalu tuntaskan.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
