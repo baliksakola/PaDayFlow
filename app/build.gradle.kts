@@ -44,7 +44,13 @@ android {
         getByName("release") {
             isMinifyEnabled = false
             isShrinkResources = false
-            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
+            // Keep the CI release APK installable for device testing.
+            // Use a dedicated production keystore when GitHub signing secrets are configured.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
