@@ -131,6 +131,9 @@ internal fun AppLockScreen(
 @Composable
 internal fun AppSecuritySettingsCard(
     pinConfigured: Boolean,
+    biometricAvailable: Boolean,
+    biometricEnabled: Boolean,
+    onBiometricEnabledChange: (Boolean) -> Unit,
     onSetPin: (String) -> Unit,
     onRemovePin: () -> Unit
 ) {
@@ -150,6 +153,24 @@ internal fun AppSecuritySettingsCard(
             )
             Button(onClick = { showSetup = true; firstPin = ""; confirmPin = ""; error = null }, modifier = Modifier.fillMaxWidth()) {
                 Text(if (pinConfigured) "Ubah PIN" else "Atur PIN")
+            }
+            if (pinConfigured) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Buka dengan biometrik", fontWeight = FontWeight.Medium)
+                        Text(
+                            if (!biometricAvailable) "Perangkat belum mendukung atau belum mengatur sidik jari/wajah."
+                            else "Gunakan sidik jari atau pengenalan wajah saat membuka aplikasi.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = biometricEnabled && biometricAvailable,
+                        onCheckedChange = onBiometricEnabledChange,
+                        enabled = biometricAvailable
+                    )
+                }
             }
             if (pinConfigured) {
                 TextButton(onClick = onRemovePin, modifier = Modifier.fillMaxWidth()) { Text("Nonaktifkan kunci aplikasi") }
