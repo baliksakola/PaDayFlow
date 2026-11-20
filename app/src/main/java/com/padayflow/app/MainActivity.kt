@@ -372,113 +372,70 @@ private fun Dashboard(tasks: List<TaskEntity>, modifier: Modifier = Modifier, on
     val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
     val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
     val active = remember(tasks) { tasks.filter { it.status != "Selesai" && it.status != "Dibatalkan" } }
-    val done = remember(tasks) { tasks.count { it.status == "Selesai" } }
-    val todayTasks = remember(tasks, start, end) { active.filter { t -> (t.startAt != null && t.startAt >= start && t.startAt < end) || (t.scheduledStartAt != null && t.scheduledStartAt >= start && t.scheduledStartAt < end) }.distinctBy { it.id }.sortedBy { it.scheduledStartAt ?: it.startAt ?: Long.MAX_VALUE } }
-    val urgent = remember(active) { active.count { it.priority == "Mendesak" } }
-    val overdue = remember(active, start) { active.count { it.deadlineAt?.let { d -> d < start } == true } }
-    val todayDone = remember(tasks, start, end) { tasks.count { t -> t.status == "Selesai" && ((t.startAt != null && t.startAt >= start && t.startAt < end) || (t.scheduledStartAt != null && t.scheduledStartAt >= start && t.scheduledStartAt < end)) } }
-    val todayTotal = todayTasks.size + todayDone
-    val dueSoonEnd = today.plusDays(7).atStartOfDay(zone).toInstant().toEpochMilli()
-    val dueSoon = remember(active, start, dueSoonEnd) { active.filter { it.deadlineAt?.let { d -> d >= start && d < dueSoonEnd } == true }.sortedBy { it.deadlineAt }.take(4) }
-    val dateDay = today.format(DateTimeFormatter.ofPattern("dd"))
-    val dateMonth = today.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("id", "ID"))).uppercase(Locale("id", "ID"))
-    val weekday = today.format(DateTimeFormatter.ofPattern("EEEE", Locale("id", "ID"))).uppercase(Locale("id", "ID"))
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("PA / DAYFLOW", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, letterSpacing = 2.sp, color = MaterialTheme.colorScheme.primary)
-                Text("Atur kegiatan dan pengingat harian", style = MaterialTheme.typography.labelSmall, letterSpacing = 0.4.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val completed = remember(tasks) { tasks.count { it.status == "Selesai" } }
+    val todayTasks = remember(active, start, end) { active.filter { task -> (task.startAt != null && task.startAt >= start && task.startAt < end) || (task.scheduledStartAt != null && task.scheduledStartAt >= start && task.scheduledStartAt < end) }.distinctBy { it.id }.sortedBy { it.scheduledStartAt ?: it.startAt ?: Long.MAX_VALUE } }
+    val overdue = remember(active, start) { active.filter { it.deadlineAt != null && it.deadlineAt < start } }
+    val dueSoon = remember(active, start) { active.filter { it.deadlineAt != null && it.deadlineAt >= start }.sortedBy { it.deadlineAt }.take(5) }
+    val greetingDate = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID")))
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("PaDayFlow", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text("Atur waktu. Selesaikan yang penting.", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(greetingDate, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = onSearchClick) { Icon(Icons.Outlined.Search, contentDescription = "Cari tugas dan catatan") }
-            Text("●  OFFLINE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            IconButton(onClick = onSearchClick) { Icon(Icons.Outlined.Search, contentDescription = "Cari") }
         }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(dateDay, style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(weekday, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
-                Text(dateMonth, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Fokus pada hal penting hari ini.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.primary) {
-            Row(Modifier.padding(horizontal = 18.dp, vertical = 17.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("PROGRES KESELURUHAN", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f), letterSpacing = 1.3.sp)
-                    Text("$done / ${tasks.size}", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Black)
-                    Text("tugas diselesaikan", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimary)
-                }
-                Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(progress = { if (tasks.isEmpty()) 0f else done.toFloat() / tasks.size }, modifier = Modifier.fillMaxSize(), strokeWidth = 7.dp, color = MaterialTheme.colorScheme.onPrimary, trackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f))
-                    Text("${if (tasks.isEmpty()) 0 else done * 100 / tasks.size}%", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("RINGKASAN TUGAS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column { Text(active.size.toString(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer); Text("Belum selesai", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer) }
+                    Column { Text(completed.toString(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer); Text("Selesai", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer) }
+                    Column { Text(overdue.size.toString(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error); Text("Terlambat", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer) }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-            Column(Modifier.weight(1f)) { Text(todayTasks.size.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("AGENDA", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Column(Modifier.weight(1f)) { Text(urgent.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("MENDESAK", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Column(Modifier.weight(1f)) { Text(overdue.toString().padStart(2, '0'), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black); Text("TERLAMBAT", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-        if (todayTotal > 0) {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("PROGRES HARI INI", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.weight(1f))
-                        Text("$todayDone / $todayTotal selesai", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                    }
-                    LinearProgressIndicator(
-                        progress = { if (todayTotal == 0) 0f else todayDone.toFloat() / todayTotal },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    Text("${if (todayTotal == 0) 0 else todayDone * 100 / todayTotal}% agenda hari ini terselesaikan", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Agenda hari ini", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(todayTasks.size.toString() + " tugas", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
-        if (dueSoon.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("DEADLINE MENDATANG", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                dueSoon.forEach { task ->
-                    Row(Modifier.fillMaxWidth().clickable { onOpenTask(task) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (todayTasks.isEmpty()) {
+                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Belum ada agenda hari ini", fontWeight = FontWeight.SemiBold)
+                    Text("Tambahkan tugas dan atur tanggal pengerjaannya.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } }
+            } else todayTasks.take(6).forEach { task ->
+                Card(Modifier.fillMaxWidth().clickable { onOpenTask(task) }) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                            Icon(Icons.Outlined.EventNote, contentDescription = null, modifier = Modifier.padding(10.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(task.title, fontWeight = FontWeight.SemiBold)
-                            Text(task.category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(task.category + " · " + task.priority, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text(task.deadlineAt?.let(::formatDate) ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        Text(task.scheduledStartAt?.let(::formatTime) ?: "Hari ini", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text("AGENDA / 01", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp); Text("Ritme hari ini", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black) }
-            Text("${todayTasks.size} aktivitas", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (todayTasks.isEmpty()) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Belum ada agenda.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text("Tambahkan tanggal mulai atau jadwal waktu pada tugas untuk membangun ritme harian.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
-        } else todayTasks.take(8).forEachIndexed { index, task ->
-            Row(Modifier.fillMaxWidth().clickable { onOpenTask(task) }.padding(vertical = 9.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(42.dp)) {
-                    Text(task.scheduledStartAt?.let(::formatTime) ?: "— —", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    if (index != todayTasks.take(8).lastIndex) Surface(Modifier.padding(top = 8.dp).width(2.dp).height(42.dp), color = MaterialTheme.colorScheme.outlineVariant) {}
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Batas waktu terdekat", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (dueSoon.isEmpty()) Text("Tidak ada tenggat aktif dalam daftar tugas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else dueSoon.forEach { task ->
+                Row(Modifier.fillMaxWidth().clickable { onOpenTask(task) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(task.title, fontWeight = FontWeight.Medium)
+                        Text(task.category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(task.deadlineAt?.let(::formatDate) ?: "", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Outlined.ChevronRight, contentDescription = null)
                 }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("${task.category}  /  ${task.priority.uppercase(Locale("id", "ID"))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.5.sp)
-                    if (task.deadlineAt != null) Text("DEADLINE  ${formatDate(task.deadlineAt)}", style = MaterialTheme.typography.labelSmall, color = if (task.deadlineAt < start) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Outlined.ArrowOutward, contentDescription = "Buka tugas", tint = MaterialTheme.colorScheme.primary)
+                HorizontalDivider()
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
-        val focus = active.filter { it.priority == "Mendesak" || it.priority == "Tinggi" }.sortedWith(compareBy<TaskEntity>({ if (it.priority == "Mendesak") 0 else 1 }, { it.deadlineAt ?: Long.MAX_VALUE })).take(3)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text("FOCUS / 02", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp); Text("Jangan kehilangan arah", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black) }
-        }
-        if (focus.isEmpty()) Text("Tidak ada tugas prioritas tinggi saat ini.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-        else focus.forEach { task -> Row(Modifier.fillMaxWidth().clickable { onOpenTask(task) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { Text(if (task.priority == "Mendesak") "!" else "↑", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Black, modifier = Modifier.width(34.dp)); Column(Modifier.weight(1f)) { Text(task.title, fontWeight = FontWeight.Bold); Text("${task.category} · ${task.status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }; Icon(Icons.Outlined.ChevronRight, contentDescription = null) } }
         Spacer(Modifier.height(72.dp))
     }
 }
