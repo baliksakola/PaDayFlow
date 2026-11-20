@@ -100,6 +100,7 @@ class MainActivity : FragmentActivity() {
         val pinHashFlow = settings.data.map { it[APP_PIN_HASH] ?: "" }
         val pinSaltFlow = settings.data.map { it[APP_PIN_SALT] ?: "" }
         val appLockEnabledFlow = settings.data.map { it[APP_LOCK_ENABLED] ?: false }
+        val biometricEnabledFlow = settings.data.map { it[APP_BIOMETRIC_ENABLED] ?: false }
         val categoriesFlow = settings.data.map { (it[TASK_CATEGORIES] ?: DEFAULT_TASK_CATEGORIES).split("\n").map(String::trim).filter(String::isNotBlank) }
         val productiveHoursFlow = settings.data.map { it[DAILY_PRODUCTIVE_HOURS] ?: 6 }
         val protectedTimesFlow = settings.data.map { it[PROTECTED_TIME_BLOCKS] ?: DEFAULT_PROTECTED_TIME_BLOCKS }
@@ -111,6 +112,7 @@ class MainActivity : FragmentActivity() {
             val pinHash by pinHashFlow.collectAsState(initial = "")
             val pinSalt by pinSaltFlow.collectAsState(initial = "")
             val appLockEnabled by appLockEnabledFlow.collectAsState(initial = false)
+            val biometricEnabled by biometricEnabledFlow.collectAsState(initial = false)
             val biometricAvailable = remember { BiometricManager.from(this@MainActivity).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS }
             var securityInitialized by remember { mutableStateOf(false) }
             LaunchedEffect(appLockEnabled, pinHash) {
@@ -129,7 +131,7 @@ class MainActivity : FragmentActivity() {
             PaDayFlowTheme(themeMode = themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     PaDayFlowApp(database, database.taskDao(), database.habitDao(), database.noteDao(), categories = categories, onCategoriesChange = { value -> lifecycleScope.launch { settings.edit { it[TASK_CATEGORIES] = value.joinToString("\n") } } },
-                        pinHash = pinHash, pinSalt = pinSalt, appLockEnabled = appLockEnabled, appLocked = appLockedState.value, biometricAvailable = biometricAvailable, onBiometricUnlock = { showBiometricPrompt() }, onUnlock = { appLockedState.value = false },
+                        pinHash = pinHash, pinSalt = pinSalt, appLockEnabled = appLockEnabled, appLocked = appLockedState.value, biometricAvailable = biometricAvailable, biometricEnabled = biometricEnabled, onBiometricUnlock = { showBiometricPrompt() }, onUnlock = { appLockedState.value = false }, onBiometricEnabledChange = { enabled -> lifecycleScope.launch { settings.edit { it[APP_BIOMETRIC_ENABLED] = enabled } } },
                         onSetPin = { pin -> val salt = createPinSalt(); val hash = hashAppPin(pin, salt); lifecycleScope.launch { settings.edit { it[APP_PIN_SALT] = salt; it[APP_PIN_HASH] = hash; it[APP_LOCK_ENABLED] = true } } },
                         onRemovePin = { lifecycleScope.launch { settings.edit { it.remove(APP_PIN_HASH); it.remove(APP_PIN_SALT); it[APP_LOCK_ENABLED] = false } }; appLockedState.value = false },
                         initialTaskId = intent.getLongExtra("openTaskId", -1L),
@@ -152,11 +154,11 @@ class MainActivity : FragmentActivity() {
 }
 
 @Composable
-private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, categories: List<String>, onCategoriesChange: (List<String>) -> Unit, pinHash: String, pinSalt: String, appLockEnabled: Boolean, appLocked: Boolean, biometricAvailable: Boolean, onBiometricUnlock: () -> Unit, onUnlock: () -> Unit, onSetPin: (String) -> Unit, onRemovePin: () -> Unit, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
+private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: HabitDao, noteDao: NoteDao, categories: List<String>, onCategoriesChange: (List<String>) -> Unit, pinHash: String, pinSalt: String, appLockEnabled: Boolean, appLocked: Boolean, biometricAvailable: Boolean, biometricEnabled: Boolean, onBiometricUnlock: () -> Unit, onUnlock: () -> Unit, onBiometricEnabledChange: (Boolean) -> Unit, onSetPin: (String) -> Unit, onRemovePin: () -> Unit, initialTaskId: Long, themeMode: String, onThemeChange: (String) -> Unit, productiveHours: Int, onProductiveHoursChange: (Int) -> Unit, protectedTimes: String, onProtectedTimesChange: (String) -> Unit, snoozeMinutes: Int, onSnoozeMinutesChange: (Int) -> Unit, workdayStart: String, workdayEnd: String, onWorkdayChange: (String, String) -> Unit) {
     val activityContext = LocalContext.current
     val context = activityContext.applicationContext
     if (appLockEnabled && appLocked && pinHash.isNotBlank()) {
-        AppLockScreen(expectedHash = pinHash, salt = pinSalt, biometricAvailable = biometricAvailable, onBiometricUnlock = onBiometricUnlock, onUnlock = onUnlock)
+        AppLockScreen(expectedHash = pinHash, salt = pinSalt, biometricAvailable = biometricAvailable && biometricEnabled, onBiometricUnlock = onBiometricUnlock, onUnlock = onUnlock)
         return
     }
     var tab by remember { mutableIntStateOf(0) }
@@ -250,7 +252,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                     onBack = { showSmartAssistant = false }, onOpenTask = { editing = it })
                 showAnalytics -> AnalyticsScreen(tasks, habits, habitLogs, Modifier.padding(padding),
                     onBack = { showAnalytics = false })
-                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, workdayStart, workdayEnd, categories, pinHash.isNotBlank(), onSetPin, onRemovePin, Modifier.padding(padding),
+                showSettings -> SettingsScreen(themeMode, productiveHours, protectedTimes, snoozeMinutes, workdayStart, workdayEnd, categories, pinHash.isNotBlank(), biometricAvailable, biometricEnabled, onBiometricEnabledChange, onSetPin, onRemovePin, Modifier.padding(padding),
                     onBack = { showSettings = false }, onThemeChange = onThemeChange,
                     onProductiveHoursChange = onProductiveHoursChange, onProtectedTimesChange = onProtectedTimesChange,
                     onSnoozeMinutesChange = onSnoozeMinutesChange, onWorkdayChange = onWorkdayChange, onCategoriesChange = onCategoriesChange)
@@ -677,6 +679,9 @@ private fun SettingsScreen(
     workdayEnd: String,
     categories: List<String>,
     pinConfigured: Boolean,
+    biometricAvailable: Boolean,
+    biometricEnabled: Boolean,
+    onBiometricEnabledChange: (Boolean) -> Unit,
     onSetPin: (String) -> Unit,
     onRemovePin: () -> Unit,
     modifier: Modifier = Modifier,
@@ -760,7 +765,7 @@ private fun SettingsScreen(
             }
         }
 
-        AppSecuritySettingsCard(pinConfigured = pinConfigured, onSetPin = onSetPin, onRemovePin = onRemovePin)
+        AppSecuritySettingsCard(pinConfigured = pinConfigured, biometricAvailable = biometricAvailable, biometricEnabled = biometricEnabled, onBiometricEnabledChange = onBiometricEnabledChange, onSetPin = onSetPin, onRemovePin = onRemovePin)
 
         Card(
             Modifier.fillMaxWidth(),
