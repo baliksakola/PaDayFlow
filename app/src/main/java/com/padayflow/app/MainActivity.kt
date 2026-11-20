@@ -235,7 +235,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
         if (initialTaskId > 0L && handledNotificationTaskId != initialTaskId) {
             tasks.firstOrNull { it.id == initialTaskId }?.let {
                 editing = it
-                tab = 2
+                tab = 1
                 handledNotificationTaskId = initialTaskId
             }
         }
@@ -309,7 +309,7 @@ private fun PaDayFlowApp(database: PaDayFlowDatabase, dao: TaskDao, habitDao: Ha
                 }
             }
             adding = false
-            tab = 2
+            tab = 1
         }
     })
     editing?.let { task ->
@@ -1358,6 +1358,7 @@ private fun TaskEditorDialog(task: TaskEntity?, categories: List<String>, onDism
     var priorityMenu by remember { mutableStateOf(false) }
     var statusMenu by remember { mutableStateOf(false) }
     var validation by remember { mutableStateOf<String?>(null) }
+    var showAdvanced by remember(task?.id) { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1366,7 +1367,6 @@ private fun TaskEditorDialog(task: TaskEntity?, categories: List<String>, onDism
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(title, { title = it }, label = { Text("Nama tugas *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(description, { description = it }, label = { Text("Deskripsi") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                 Box {
                     TextButton(onClick = { categoryMenu = true }) { Text("Kategori: " + category + " ▾") }
                     DropdownMenu(categoryMenu, { categoryMenu = false }) {
@@ -1383,36 +1383,7 @@ private fun TaskEditorDialog(task: TaskEntity?, categories: List<String>, onDism
                         }
                     }
                 }
-                Box {
-                    TextButton(onClick = { statusMenu = true }) { Text("Status: " + status + " ▾") }
-                    DropdownMenu(statusMenu, { statusMenu = false }) {
-                        listOf("Belum dikerjakan", "Sedang dikerjakan", "Tertunda", "Menunggu orang lain", "Selesai", "Dibatalkan").forEach {
-                            DropdownMenuItem(text = { Text(it) }, onClick = { status = it; statusMenu = false })
-                        }
-                    }
-                }
-                CalendarDateField("Tanggal mulai", startDate, { startDate = it }, "Opsional")
                 CalendarDateField("Deadline", deadline, { deadline = it })
-                Text("Waktu pengerjaan (opsional)", style = MaterialTheme.typography.labelLarge)
-                TimePickerField("Jam mulai", scheduledStartTime, { scheduledStartTime = it },
-                    "Gunakan tanggal mulai di atas.")
-                TimePickerField("Jam selesai", scheduledEndTime, { scheduledEndTime = it },
-                    "Pilih waktu selesai setelah jam mulai.")
-                Text("Pengulangan", style = MaterialTheme.typography.labelLarge)
-                Box {
-                    TextButton(onClick = { recurrenceMenu = true }) { Text("Ulangi: " + when (recurrenceRule) { "DAILY" -> "Setiap hari"; "WEEKLY" -> "Setiap minggu"; "MONTHLY" -> "Setiap bulan"; else -> "Tidak berulang" } + " ▾") }
-                    DropdownMenu(recurrenceMenu, { recurrenceMenu = false }) {
-                        listOf("NONE" to "Tidak berulang", "DAILY" to "Harian", "WEEKLY" to "Mingguan", "MONTHLY" to "Bulanan").forEach { (value, label) ->
-                            DropdownMenuItem(text = { Text(label) }, onClick = { recurrenceRule = value; recurrenceMenu = false })
-                        }
-                    }
-                }
-                if (recurrenceRule != "NONE") {
-                    OutlinedTextField(recurrenceInterval, { recurrenceInterval = it.filter(Char::isDigit).take(3) }, label = { Text("Interval pengulangan") }, supportingText = { Text("1 = setiap periode; 2 = setiap dua periode.") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    CalendarDateField("Berakhir pada", recurrenceEnd, { recurrenceEnd = it }, "Opsional")
-                }
-                OutlinedTextField(estimate, { estimate = it.filter(Char::isDigit) }, label = { Text("Estimasi durasi (menit)") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth())
                 Text("Pengingat", style = MaterialTheme.typography.labelLarge)
                 Text("Atur pengingat manual atau pilih waktu cepat sebelum deadline.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1436,7 +1407,39 @@ private fun TaskEditorDialog(task: TaskEntity?, categories: List<String>, onDism
                 CalendarDateField("Tanggal pengingat", reminder, { reminder = it; reminderPresetMessage = null }, "Opsional")
                 TimePickerField("Jam pengingat", reminderTime, { reminderTime = it; reminderPresetMessage = null },
                     "Jika kosong, pengingat dijadwalkan pukul 09:00.")
-                OutlinedTextField(notes, { notes = it }, label = { Text("Catatan") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                TextButton(onClick = { showAdvanced = !showAdvanced }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (showAdvanced) "Sembunyikan pengaturan tambahan ▲" else "Pengaturan tambahan ▼")
+                }
+                if (showAdvanced) {
+                    OutlinedTextField(description, { description = it }, label = { Text("Deskripsi") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                    Box {
+                        TextButton(onClick = { statusMenu = true }) { Text("Status: " + status + " ▾") }
+                        DropdownMenu(statusMenu, { statusMenu = false }) {
+                            listOf("Belum dikerjakan", "Sedang dikerjakan", "Tertunda", "Menunggu orang lain", "Selesai", "Dibatalkan").forEach {
+                                DropdownMenuItem(text = { Text(it) }, onClick = { status = it; statusMenu = false })
+                            }
+                        }
+                    }
+                    CalendarDateField("Tanggal mulai", startDate, { startDate = it }, "Opsional")
+                    Text("Waktu pengerjaan (opsional)", style = MaterialTheme.typography.labelLarge)
+                    TimePickerField("Jam mulai", scheduledStartTime, { scheduledStartTime = it }, "Gunakan tanggal mulai di atas.")
+                    TimePickerField("Jam selesai", scheduledEndTime, { scheduledEndTime = it }, "Pilih waktu selesai setelah jam mulai.")
+                    Text("Pengulangan", style = MaterialTheme.typography.labelLarge)
+                    Box {
+                        TextButton(onClick = { recurrenceMenu = true }) { Text("Ulangi: " + when (recurrenceRule) { "DAILY" -> "Setiap hari"; "WEEKLY" -> "Setiap minggu"; "MONTHLY" -> "Setiap bulan"; else -> "Tidak berulang" } + " ▾") }
+                        DropdownMenu(recurrenceMenu, { recurrenceMenu = false }) {
+                            listOf("NONE" to "Tidak berulang", "DAILY" to "Harian", "WEEKLY" to "Mingguan", "MONTHLY" to "Bulanan").forEach { (value, label) ->
+                                DropdownMenuItem(text = { Text(label) }, onClick = { recurrenceRule = value; recurrenceMenu = false })
+                            }
+                        }
+                    }
+                    if (recurrenceRule != "NONE") {
+                        OutlinedTextField(recurrenceInterval, { recurrenceInterval = it.filter(Char::isDigit).take(3) }, label = { Text("Interval pengulangan") }, supportingText = { Text("1 = setiap periode; 2 = setiap dua periode.") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        CalendarDateField("Berakhir pada", recurrenceEnd, { recurrenceEnd = it }, "Opsional")
+                    }
+                    OutlinedTextField(estimate, { estimate = it.filter(Char::isDigit) }, label = { Text("Estimasi durasi (menit)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(notes, { notes = it }, label = { Text("Catatan") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                }
                 validation?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
         },
