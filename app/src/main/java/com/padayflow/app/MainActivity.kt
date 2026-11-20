@@ -60,32 +60,54 @@ private val tabIcons = listOf(Icons.Outlined.Home, Icons.Outlined.Today, Icons.O
 private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
 class MainActivity : FragmentActivity() {
+    private var biometricPromptVisible = false
+
     private fun showBiometricPrompt() {
+        val availability = BiometricManager.from(this).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+        if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
+            val message = when (availability) {
+                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "Perangkat tidak memiliki sensor biometrik."
+                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Sensor biometrik sedang tidak tersedia. Coba lagi."
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "Daftarkan sidik jari atau wajah di Pengaturan Android terlebih dahulu."
+                BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED -> "Perangkat memerlukan pembaruan keamanan sebelum biometrik digunakan."
+                BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED -> "Metode biometrik tidak didukung perangkat."
+                else -> "Biometrik belum siap. Periksa pengaturan keamanan perangkat."
+            }
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            return
+        }
         val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 super.onAuthenticationSucceeded(result)
+                biometricPromptVisible = false
                 appLockedState.value = false
+            }
+            override fun onAuthenticationFailed() {
+                super.onAuthenticationFailed()
+                Toast.makeText(this@MainActivity, "Biometrik tidak dikenali. Coba lagi.", Toast.LENGTH_SHORT).show()
             }
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
+                biometricPromptVisible = false
                 if (errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON && errorCode != BiometricPrompt.ERROR_USER_CANCELED) {
-                    Toast.makeText(this@MainActivity, errString, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, errString, Toast.LENGTH_LONG).show()
                 }
             }
         })
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Buka PaDayFlow")
-            .setSubtitle("Verifikasi menggunakan biometrik perangkat")
+            .setSubtitle("Verifikasi menggunakan sidik jari atau wajah")
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
             .setNegativeButtonText("Gunakan PIN")
             .build()
+        biometricPromptVisible = true
         prompt.authenticate(promptInfo)
     }
     private var lockEnabledCached = false
     private val appLockedState = mutableStateOf(false)
 
     override fun onStop() {
-        if (lockEnabledCached) appLockedState.value = true
+        if (lockEnabledCached && !biometricPromptVisible) appLockedState.value = true
         super.onStop()
     }
     override fun onCreate(savedInstanceState: Bundle?) {
