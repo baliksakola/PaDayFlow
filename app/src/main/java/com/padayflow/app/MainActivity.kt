@@ -1370,6 +1370,7 @@ private fun TaskEditorDialog(task: TaskEntity?, categories: List<String>, onDism
     var estimate by remember(task?.id) { mutableStateOf(if (task == null || task.estimatedMinutes == 0) "" else task.estimatedMinutes.toString()) }
     var reminder by remember(task?.id) { mutableStateOf(task?.reminderAt?.let(::formatDate).orEmpty()) }
     var reminderTime by remember(task?.id) { mutableStateOf(task?.reminderAt?.let(::formatTime).orEmpty()) }
+    var reminderPresetMessage by remember { mutableStateOf<String?>(null) }
     var notes by remember(task?.id) { mutableStateOf(task?.notes.orEmpty()) }
     var categoryMenu by remember { mutableStateOf(false) }
     var priorityMenu by remember { mutableStateOf(false) }
@@ -1430,9 +1431,29 @@ private fun TaskEditorDialog(task: TaskEntity?, categories: List<String>, onDism
                 }
                 OutlinedTextField(estimate, { estimate = it.filter(Char::isDigit) }, label = { Text("Estimasi durasi (menit)") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
-                CalendarDateField("Tanggal pengingat", reminder, { reminder = it }, "Opsional")
-                TimePickerField("Jam pengingat", reminderTime, { reminderTime = it },
-                    "Opsional. Jika kosong, pengingat dijadwalkan pukul 09:00.")
+                Text("Pengingat", style = MaterialTheme.typography.labelLarge)
+                Text("Atur pengingat manual atau pilih waktu cepat sebelum deadline.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("10 menit" to 10L, "1 jam" to 60L, "1 hari" to 1440L).forEach { (label, minutes) ->
+                        OutlinedButton(onClick = {
+                            val deadlineBase = parseDateTime(deadline, "09:00")
+                            if (deadlineBase == null) {
+                                reminderPresetMessage = "Isi deadline terlebih dahulu untuk memakai pengingat cepat."
+                            } else {
+                                val reminderAt = deadlineBase - minutes * 60_000L
+                                reminder = formatDate(reminderAt)
+                                reminderTime = formatTime(reminderAt)
+                                reminderPresetMessage = "Pengingat diatur $label sebelum deadline."
+                            }
+                        }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)) {
+                            Text(label, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                reminderPresetMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+                CalendarDateField("Tanggal pengingat", reminder, { reminder = it; reminderPresetMessage = null }, "Opsional")
+                TimePickerField("Jam pengingat", reminderTime, { reminderTime = it; reminderPresetMessage = null },
+                    "Jika kosong, pengingat dijadwalkan pukul 09:00.")
                 OutlinedTextField(notes, { notes = it }, label = { Text("Catatan") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                 validation?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
